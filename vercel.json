@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/activity-check",
+      "schedule": "0 0 1 * *"
+    },
+    {
+      "path": "/api/cron/payout-cycle",
+      "schedule": "0 0 5 * *"
+    }
+  ]
+}
