@@ -52,8 +52,6 @@ const userSchema = new Schema<IUser>({
 }, { timestamps: true });
 
 // Indexes
-userSchema.index({ mobile: 1 });
-userSchema.index({ memberId: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ referrerId: 1 });
 

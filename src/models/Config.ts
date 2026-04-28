@@ -16,7 +16,6 @@ const configSchema = new Schema<IConfig>({
   description: { type: String }
 });
 
-// Index for fast lookups by key
-configSchema.index({ key: 1 });
+// Redundant index on key removed as unique: true already creates it
 
 export default mongoose.models.Config || mongoose.model<IConfig>('Config', configSchema);

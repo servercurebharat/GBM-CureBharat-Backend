@@ -37,7 +37,6 @@ const saleSchema = new Schema<ISale>({
   cycleMonth: { type: String, required: true },
 }, { timestamps: true });
 
-saleSchema.index({ policyId: 1 });
 saleSchema.index({ hccId: 1 });
 saleSchema.index({ cycleMonth: 1 });
 

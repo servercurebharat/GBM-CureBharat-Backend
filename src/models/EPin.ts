@@ -32,7 +32,6 @@ const epinSchema = new Schema<IEPin>({
   }]
 }, { timestamps: true });
 
-epinSchema.index({ pinCode: 1 });
 epinSchema.index({ currentOwnerId: 1 });
 
 export default mongoose.models.EPin || mongoose.model<IEPin>('EPin', epinSchema);

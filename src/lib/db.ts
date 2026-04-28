@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const MONGODB_URI = process.env.MONGODB_URI || '';
 
 if (!MONGODB_URI) {
-  console.error('MONGODB_URI is missing in .env.local');
+  console.error('MONGODB_URI is missing in .env');
 }
 
 export const connectDB = async () => {

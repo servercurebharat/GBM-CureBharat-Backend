@@ -39,6 +39,6 @@ const walletSchema = new Schema<IWallet>({
   }]
 }, { timestamps: true });
 
-walletSchema.index({ user: 1 });
+// Index on user removed as it is already indexed via unique: true
 
 export default mongoose.models.Wallet || mongoose.model<IWallet>('Wallet', walletSchema);
