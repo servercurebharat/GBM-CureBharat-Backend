@@ -36,6 +36,32 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Request/Response Logging Middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const { method, url } = req;
+  
+  // Log request
+  console.log(`\n[API Request] ${method} ${url}`);
+  if (Object.keys(req.body).length > 0) {
+    const safeBody = { ...req.body };
+    if (safeBody.otp) safeBody.otp = '******'; // Hide OTP
+    if (safeBody.password) safeBody.password = '******'; // Hide Password
+    console.log(`  Body:`, JSON.stringify(safeBody, null, 2));
+  }
+
+  // Intercept response to log it
+  const oldJson = res.json;
+  res.json = function(data) {
+    const duration = Date.now() - start;
+    console.log(`[API Response] ${method} ${url} - Status: ${res.statusCode} (${duration}ms)`);
+    // console.log(`  Data:`, JSON.stringify(data, null, 2)); // Uncomment for full data logs
+    return oldJson.call(this, data);
+  };
+
+  next();
+});
+
 // Route Handlers
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

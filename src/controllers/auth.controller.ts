@@ -7,12 +7,29 @@ import EPin from '../models/EPin';
 // In-memory OTP store (replace with Redis in production)
 const otpStore: Map<string, { otp: string; expiresAt: number }> = new Map();
 
+const PREDEFINED_ACCOUNTS: Record<string, string> = {
+  '9000000000': 'Admin@123',
+  '9100000001': 'SH@123456',
+  '9200000001': 'HBA@123456',
+  '9300000001': 'HCM@123456',
+  '9400000001': 'HCC@123456',
+};
+
 export const sendOTP = async (req: Request, res: Response) => {
   try {
     const { mobile } = req.body;
 
     if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
       return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
+    }
+
+    // Check for predefined test accounts
+    if (PREDEFINED_ACCOUNTS[mobile]) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Test Account Detected: Use your predefined password',
+        otp: '******' 
+      });
     }
 
     // Generate 6-digit OTP
@@ -23,8 +40,6 @@ export const sendOTP = async (req: Request, res: Response) => {
 
     console.log(`[AUTH] OTP for ${mobile}: ${otp}`);
 
-    // TODO: Integrate SMS gateway here
-    
     // In development, return OTP (remove in production)
     return res.status(200).json({ 
       success: true, 
@@ -40,27 +55,57 @@ export const sendOTP = async (req: Request, res: Response) => {
 export const verifyOTP = async (req: Request, res: Response) => {
   try {
     const { mobile, otp } = req.body;
+    
+    console.log(`[DEBUG] Attempting Login: Mobile="${mobile}", ReceivedValue="${otp}"`);
+    console.log(`[DEBUG] Predefined Accounts List:`, Object.keys(PREDEFINED_ACCOUNTS));
 
-    const stored = otpStore.get(mobile);
-    if (!stored || stored.expiresAt < Date.now()) {
-      return res.status(400).json({ success: false, message: 'OTP expired or not found' });
+    let isVerified = false;
+
+    // 1. Check for predefined test accounts first
+    const expectedPassword = PREDEFINED_ACCOUNTS[mobile];
+    if (expectedPassword) {
+      console.log(`[DEBUG] Test account detected. Expected Password: "${expectedPassword}"`);
+      if (expectedPassword === otp) {
+        console.log(`[DEBUG] Password MATCH!`);
+        isVerified = true;
+      } else {
+        console.log(`[DEBUG] Password MISMATCH.`);
+      }
+    } 
+    
+    // 2. If not a test account (or password failed), check the normal OTP store
+    if (!isVerified) {
+      const stored = otpStore.get(mobile);
+      if (stored) {
+        console.log(`[DEBUG] Found OTP in store: "${stored.otp}", Expired: ${stored.expiresAt < Date.now()}`);
+        if (stored.expiresAt > Date.now() && stored.otp === otp) {
+          isVerified = true;
+          otpStore.delete(mobile);
+        }
+      } else {
+        console.log(`[DEBUG] No OTP found in store for this mobile.`);
+      }
     }
 
-    if (stored.otp !== otp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    if (!isVerified) {
+      console.log(`[DEBUG] Login DENIED.`);
+      return res.status(400).json({ 
+        success: false, 
+        message: expectedPassword ? 'Invalid Password' : 'Invalid or expired OTP' 
+      });
     }
 
-    // OTP verified, clear it
-    otpStore.delete(mobile);
-
+    console.log(`[DEBUG] Login APPROVED. Searching for user in DB...`);
     const user: any = await User.findOne({ mobile }).lean();
     if (!user) {
+      console.log(`[DEBUG] User NOT found in DB. Returning registered:false`);
       return res.status(200).json({ 
         success: true, 
         message: 'Mobile verified, please register', 
         registered: false 
       });
     }
+    console.log(`[DEBUG] User found: ${user.name} (${user.role})`);
 
     // Generate JWT
     const token = jwt.sign(
