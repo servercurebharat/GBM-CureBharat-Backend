@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const epin_controller_1 = require("../controllers/epin.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const role_middleware_1 = require("../middleware/role.middleware");
+const router = (0, express_1.Router)();
+router.post('/generate', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), epin_controller_1.generateEPins);
+router.post('/transfer', auth_middleware_1.authMiddleware, epin_controller_1.transferEPin);
+router.get('/my-pins', auth_middleware_1.authMiddleware, epin_controller_1.getMyPins);
+exports.default = router;

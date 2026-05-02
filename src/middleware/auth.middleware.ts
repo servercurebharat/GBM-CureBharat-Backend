@@ -36,3 +36,26 @@ export const authMiddleware = async (req: any, res: Response, next: NextFunction
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 };
+
+export const optionalAuthMiddleware = async (req: any, res: Response, next: NextFunction) => {
+  try {
+    let token = req.cookies?.auth_token;
+    if (!token && req.headers.authorization?.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      return next(); // Public user
+    }
+
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const user: any = await User.findById(decoded.userId).select('-password').lean();
+    
+    if (user && user.status !== 'blocked') {
+      req.user = user;
+    }
+    next();
+  } catch (error) {
+    next(); // Silently fail and treat as public on error
+  }
+};

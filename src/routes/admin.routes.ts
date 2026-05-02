@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getCommissionConfig, updateCommissionConfig, getPendingKYC, updateKYCStatus } from '../controllers/admin.controller';
+import { getAdminTree } from '../controllers/user.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
 
@@ -13,5 +14,6 @@ router.get('/commission-config', getCommissionConfig);
 router.put('/commission-config', updateCommissionConfig);
 router.get('/kyc/pending', getPendingKYC);
 router.put('/kyc/:id/status', updateKYCStatus);
+router.get('/tree', getAdminTree);
 
 export default router;

@@ -33,7 +33,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 // Request/Response Logging Middleware
@@ -81,21 +82,25 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start Server
-const start = async () => {
+const startServer = async () => {
   try {
     await connectDB();
     
-    app.listen(PORT, () => {
-      console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
-      
-      // Initialize Cron Jobs
-      scheduleActivityCheck();
-      schedulePayoutCycle();
-      console.log('[Server] Scheduled maintenance tasks initialized');
-    });
+    if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
+        
+        // Initialize Cron Jobs
+        scheduleActivityCheck();
+        schedulePayoutCycle();
+        console.log('[Server] Scheduled maintenance tasks initialized');
+      });
+    }
   } catch (error) {
     console.error('[Server] Failed to start:', error);
   }
 };
 
-start();
+startServer();
+
+export default app;

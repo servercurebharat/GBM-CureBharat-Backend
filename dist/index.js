@@ -1,0 +1,94 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const db_1 = require("./lib/db");
+const validateEnv_1 = require("./config/validateEnv");
+// Routes
+const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
+const user_routes_1 = __importDefault(require("./routes/user.routes"));
+const sale_routes_1 = __importDefault(require("./routes/sale.routes"));
+const wallet_routes_1 = __importDefault(require("./routes/wallet.routes"));
+const epin_routes_1 = __importDefault(require("./routes/epin.routes"));
+const plan_routes_1 = __importDefault(require("./routes/plan.routes"));
+const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+// Logic & Cron
+const activityCheck_1 = require("./lib/activityCheck");
+const payoutCycle_1 = require("./lib/payoutCycle");
+// Critical: Validate environment before proceeding
+(0, validateEnv_1.validateEnv)();
+const app = (0, express_1.default)();
+const PORT = process.env.PORT || 5000;
+// Middleware
+app.use((0, cors_1.default)({
+    origin: [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express_1.default.json({ limit: '50mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
+app.use((0, cookie_parser_1.default)());
+// Request/Response Logging Middleware
+app.use((req, res, next) => {
+    const start = Date.now();
+    const { method, url } = req;
+    // Log request
+    console.log(`\n[API Request] ${method} ${url}`);
+    if (Object.keys(req.body).length > 0) {
+        const safeBody = { ...req.body };
+        if (safeBody.otp)
+            safeBody.otp = '******'; // Hide OTP
+        if (safeBody.password)
+            safeBody.password = '******'; // Hide Password
+        console.log(`  Body:`, JSON.stringify(safeBody, null, 2));
+    }
+    // Intercept response to log it
+    const oldJson = res.json;
+    res.json = function (data) {
+        const duration = Date.now() - start;
+        console.log(`[API Response] ${method} ${url} - Status: ${res.statusCode} (${duration}ms)`);
+        // console.log(`  Data:`, JSON.stringify(data, null, 2)); // Uncomment for full data logs
+        return oldJson.call(this, data);
+    };
+    next();
+});
+// Route Handlers
+app.use('/api/auth', auth_routes_1.default);
+app.use('/api/users', user_routes_1.default);
+app.use('/api/sales', sale_routes_1.default);
+app.use('/api/wallet', wallet_routes_1.default);
+app.use('/api/epins', epin_routes_1.default);
+app.use('/api/plans', plan_routes_1.default);
+app.use('/api/admin', admin_routes_1.default);
+// Health Check
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date(),
+        uptime: process.uptime()
+    });
+});
+// Start Server
+const start = async () => {
+    try {
+        await (0, db_1.connectDB)();
+        app.listen(PORT, () => {
+            console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
+            // Initialize Cron Jobs
+            (0, activityCheck_1.scheduleActivityCheck)();
+            (0, payoutCycle_1.schedulePayoutCycle)();
+            console.log('[Server] Scheduled maintenance tasks initialized');
+        });
+    }
+    catch (error) {
+        console.error('[Server] Failed to start:', error);
+    }
+};
+start();

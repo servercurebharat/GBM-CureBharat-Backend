@@ -14,10 +14,15 @@ export interface IUser extends Document {
   kycStatus: 'pending' | 'approved' | 'rejected' | 'not_submitted';
   kycDocuments?: {
     aadhaarNumber?: string;
+    aadhaarFrontUrl?: string;
+    aadhaarBackUrl?: string;
     panNumber?: string;
+    panUrl?: string;
     accountNumber?: string;
     bankName?: string;
     ifscCode?: string;
+    bankProofUrl?: string;
+    selfieUrl?: string;
   };
   personalSalesCount: number;
   personalSalesThisMonth: number;
@@ -40,10 +45,15 @@ const userSchema = new Schema<IUser>({
   kycStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'not_submitted'], default: 'not_submitted' },
   kycDocuments: {
     aadhaarNumber: String,
+    aadhaarFrontUrl: String,
+    aadhaarBackUrl: String,
     panNumber: String,
+    panUrl: String,
     accountNumber: String,
     bankName: String,
     ifscCode: String,
+    bankProofUrl: String,
+    selfieUrl: String,
   },
   personalSalesCount: { type: Number, default: 0 },
   personalSalesThisMonth: { type: Number, default: 0 },

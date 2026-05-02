@@ -16,6 +16,15 @@ export const generateEPins = async (req: any, res: Response) => {
       return res.status(404).json({ success: false, message: 'Plan not found' });
     }
 
+    let targetUserId = req.user._id;
+    if (assignToUserId) {
+      const targetUser = await User.findOne({ memberId: assignToUserId });
+      if (!targetUser) {
+        return res.status(404).json({ success: false, message: `Member ${assignToUserId} not found` });
+      }
+      targetUserId = targetUser._id;
+    }
+
     const pins = [];
     for (let i = 0; i < quantity; i++) {
       const pinCode = `CB-PIN-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`;
@@ -24,7 +33,7 @@ export const generateEPins = async (req: any, res: Response) => {
         value: plan.price,
         plan: planId,
         generatedBy: req.user._id,
-        currentOwnerId: assignToUserId || req.user._id,
+        currentOwnerId: targetUserId,
         status: 'unused'
       });
     }

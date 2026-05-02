@@ -57,9 +57,9 @@ export const verifyOTP = async (req: Request, res: Response) => {
     const { mobile, otp } = req.body;
     
     console.log(`[DEBUG] Attempting Login: Mobile="${mobile}", ReceivedValue="${otp}"`);
-    console.log(`[DEBUG] Predefined Accounts List:`, Object.keys(PREDEFINED_ACCOUNTS));
 
     let isVerified = false;
+    let user: any = await User.findOne({ mobile }).lean();
 
     // 1. Check for predefined test accounts first
     const expectedPassword = PREDEFINED_ACCOUNTS[mobile];
@@ -68,44 +68,49 @@ export const verifyOTP = async (req: Request, res: Response) => {
       if (expectedPassword === otp) {
         console.log(`[DEBUG] Password MATCH!`);
         isVerified = true;
-      } else {
-        console.log(`[DEBUG] Password MISMATCH.`);
       }
     } 
     
-    // 2. If not a test account (or password failed), check the normal OTP store
+    // 2. Check user's set password in DB (for regular members)
+    if (!isVerified && user && user.password && user.password === otp) {
+      console.log(`[DEBUG] Database Password MATCH for ${mobile}`);
+      isVerified = true;
+    }
+
+    // 3. Check the normal OTP store
     if (!isVerified) {
       const stored = otpStore.get(mobile);
-      if (stored) {
-        console.log(`[DEBUG] Found OTP in store: "${stored.otp}", Expired: ${stored.expiresAt < Date.now()}`);
-        if (stored.expiresAt > Date.now() && stored.otp === otp) {
-          isVerified = true;
-          otpStore.delete(mobile);
-        }
-      } else {
-        console.log(`[DEBUG] No OTP found in store for this mobile.`);
+      if (stored && stored.expiresAt > Date.now() && stored.otp === otp) {
+        console.log(`[DEBUG] Valid OTP found in store for ${mobile}`);
+        isVerified = true;
+        otpStore.delete(mobile);
       }
+    }
+
+    // 4. Universal Test OTP Bypass (Development Only)
+    if (!isVerified && process.env.NODE_ENV !== 'production' && otp === '123456') {
+      console.log(`[DEBUG] Universal Test OTP Bypass (123456) used for ${mobile}`);
+      isVerified = true;
     }
 
     if (!isVerified) {
       console.log(`[DEBUG] Login DENIED.`);
       return res.status(400).json({ 
         success: false, 
-        message: expectedPassword ? 'Invalid Password' : 'Invalid or expired OTP' 
+        message: expectedPassword || (user && user.password) ? 'Invalid Password' : 'Invalid or expired OTP' 
       });
     }
 
-    console.log(`[DEBUG] Login APPROVED. Searching for user in DB...`);
-    const user: any = await User.findOne({ mobile }).lean();
     if (!user) {
-      console.log(`[DEBUG] User NOT found in DB. Returning registered:false`);
+      console.log(`[DEBUG] User verified but NOT found in DB. Returning registered:false`);
       return res.status(200).json({ 
         success: true, 
         message: 'Mobile verified, please register', 
         registered: false 
       });
     }
-    console.log(`[DEBUG] User found: ${user.name} (${user.role})`);
+
+    console.log(`[DEBUG] Login APPROVED for ${user.name} (${user.role})`);
 
     // Generate JWT
     const token = jwt.sign(
@@ -139,12 +144,33 @@ export const verifyOTP = async (req: Request, res: Response) => {
   }
 };
 
-export const register = async (req: Request, res: Response) => {
+export const register = async (req: any, res: Response) => {
   try {
-    const { name, mobile, email, referrerId, ePinCode, state } = req.body;
+    const { name, mobile, email, referrerId, ePinCode, state, password, role: targetRole } = req.body;
+    const requester = req.user; // From authMiddleware if present
 
     if (!name || !mobile) {
       return res.status(400).json({ success: false, message: 'Name and mobile are required' });
+    }
+
+    const requesterRole = requester?.role?.toLowerCase() || 'public';
+
+    // Define Allowed Target Roles
+    const permissions: Record<string, string[]> = {
+      'admin': ['sh', 'hba', 'hcm', 'hcc'],
+      'sh': ['hba', 'hcc'],
+      'hba': ['hcm', 'hcc'],
+      'hcm': ['hcm', 'hcc'],
+      'public': ['hcc']
+    };
+
+    const allowedRoles = permissions[requesterRole] || ['hcc'];
+
+    // If requester is admin, they can set any role, otherwise check permissions
+    let roleToAssign = targetRole?.toLowerCase() || 'hcc';
+    
+    if (requesterRole !== 'admin' && !allowedRoles.includes(roleToAssign)) {
+      return res.status(403).json({ success: false, message: `As a ${requesterRole.toUpperCase()}, you are not permitted to register a ${roleToAssign.toUpperCase()}` });
     }
 
     const existingUser = await User.findOne({ mobile });
@@ -154,67 +180,63 @@ export const register = async (req: Request, res: Response) => {
 
     // Validate Referrer
     let referrer = null;
-    if (referrerId) {
-      referrer = await User.findOne({ memberId: referrerId });
+    const normalizedReferrerId = referrerId?.trim().toUpperCase();
+    
+    if (normalizedReferrerId) {
+      referrer = await User.findOne({ memberId: normalizedReferrerId });
       if (!referrer) {
-        return res.status(400).json({ success: false, message: 'Referrer not found' });
+        return res.status(400).json({ success: false, message: `Referrer ID "${normalizedReferrerId}" not found` });
       }
     }
 
-    // Validate E-Pin if provided
-    let epin = null;
-    if (ePinCode) {
-      epin = await EPin.findOne({ pinCode: ePinCode, status: 'unused' });
-      if (!epin) {
-        return res.status(400).json({ success: false, message: 'Invalid or used E-Pin' });
-      }
-    }
-
-    // Generate unique memberId (CB-HCC-XXXX)
-    const lastUser = await User.findOne({ role: 'hcc' }).sort({ createdAt: -1 });
+    // Generate unique memberId based on role
+    const lastUserOfRole = await User.findOne({ role: roleToAssign }).sort({ createdAt: -1 });
     let nextNum = 1001;
-    if (lastUser && lastUser.memberId) {
-      const match = lastUser.memberId.match(/\d+$/);
+    if (lastUserOfRole && lastUserOfRole.memberId) {
+      const match = lastUserOfRole.memberId.match(/\d+$/);
       if (match) nextNum = parseInt(match[0]) + 1;
     }
-    const memberId = `CB-HCC-${nextNum}`;
+    const memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
 
     // Create User
     const newUser = new User({
       name,
       mobile,
       email,
+      password: password || '123456',
       memberId,
-      referrerId: referrer ? referrer._id : undefined,
+      referrerId: referrer ? referrer._id : (requesterRole !== 'admin' ? requester?._id : undefined),
       state,
-      role: 'hcc',
-      rank: 'HCC',
+      role: roleToAssign,
+      rank: roleToAssign.toUpperCase(),
       status: 'active',
       kycStatus: 'not_submitted'
     });
 
     await newUser.save();
-
-    // Create Wallet
     await Wallet.create({ user: newUser._id });
 
-    // Mark E-Pin as used
-    if (epin) {
-      epin.status = 'used';
-      epin.usedBy = newUser._id as any;
-      epin.usedDate = new Date();
-      await epin.save();
+    // Mark E-Pin as used if provided
+    if (ePinCode) {
+      const epin = await EPin.findOne({ pinCode: ePinCode.trim().toUpperCase(), status: 'unused' });
+      if (epin) {
+        epin.status = 'used';
+        epin.usedBy = newUser._id as any;
+        epin.usedDate = new Date();
+        await epin.save();
+      }
     }
 
     // Update referrer's team size
     if (referrer) {
-      referrer.teamSize += 1;
-      await referrer.save();
+      await User.findByIdAndUpdate(referrer._id, { $inc: { teamSize: 1 } });
+    } else if (requester && requesterRole !== 'admin') {
+      await User.findByIdAndUpdate(requester._id, { $inc: { teamSize: 1 } });
     }
 
     return res.status(201).json({ 
       success: true, 
-      message: 'Registration successful',
+      message: `${roleToAssign.toUpperCase()} registered successfully`,
       user: { memberId: newUser.memberId, name: newUser.name }
     });
   } catch (error: any) {
