@@ -29,11 +29,10 @@ const PORT = process.env.PORT || 5000;
 // Manual CORS middleware for Vercel robustness
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  // Allow all vercel.app and localhost origins
-  if (origin && (origin.endsWith('.vercel.app') || origin.includes('localhost'))) {
+  if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (process.env.FRONTEND_URL) {
-    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
   
   res.setHeader('Access-Control-Allow-Credentials', 'true');

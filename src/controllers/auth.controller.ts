@@ -122,8 +122,8 @@ export const verifyOTP = async (req: Request, res: Response) => {
     // Set httpOnly cookie
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: true, // Must be true for sameSite: 'none'
-      sameSite: 'none', // Required for cross-domain cookies
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
