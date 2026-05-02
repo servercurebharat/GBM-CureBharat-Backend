@@ -76,6 +76,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// Database Connection Check Middleware
+const dbCheck = async (req: any, res: express.Response, next: express.NextFunction) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error: any) {
+    res.status(503).json({ 
+      success: false, 
+      message: 'Database connection failed', 
+      error: error.message 
+    });
+  }
+};
+
+app.use('/api', dbCheck);
+
 // Root Welcome Route
 app.get('/', (req, res) => {
   res.send(`
