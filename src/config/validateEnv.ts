@@ -1,7 +1,6 @@
 const required = [
   'MONGODB_URI',
   'JWT_SECRET',
-  'PORT',
   'FRONTEND_URL'
 ];
 
@@ -10,7 +9,10 @@ export function validateEnv(): void {
   
   if (missing.length > 0) {
     console.error(`❌ Missing required env variables: ${missing.join(', ')}`);
-    process.exit(1);
+    // Only exit hard if not on Vercel, to prevent function invocation failures
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
   }
   
   console.log('✅ Environment variables validated');

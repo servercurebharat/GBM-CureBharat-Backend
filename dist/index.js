@@ -59,6 +59,18 @@ app.use((req, res, next) => {
     };
     next();
 });
+// Root Welcome Route
+app.get('/', (req, res) => {
+    res.send(`
+    <div style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0d0f14; color: white;">
+      <h1 style="color: #3b82f6;">🚀 CureBharat API is Live</h1>
+      <p style="opacity: 0.6;">Backend Engine Status: Operational</p>
+      <div style="margin-top: 20px; padding: 10px 20px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px border-white/10;">
+        <code style="color: #60a5fa;">v1.0.0-production</code>
+      </div>
+    </div>
+  `);
+});
 // Route Handlers
 app.use('/api/auth', auth_routes_1.default);
 app.use('/api/users', user_routes_1.default);
@@ -76,19 +88,22 @@ app.get('/api/health', (req, res) => {
     });
 });
 // Start Server
-const start = async () => {
+const startServer = async () => {
     try {
         await (0, db_1.connectDB)();
-        app.listen(PORT, () => {
-            console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
-            // Initialize Cron Jobs
-            (0, activityCheck_1.scheduleActivityCheck)();
-            (0, payoutCycle_1.schedulePayoutCycle)();
-            console.log('[Server] Scheduled maintenance tasks initialized');
-        });
+        if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+            app.listen(PORT, () => {
+                console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
+                // Initialize Cron Jobs
+                (0, activityCheck_1.scheduleActivityCheck)();
+                (0, payoutCycle_1.schedulePayoutCycle)();
+                console.log('[Server] Scheduled maintenance tasks initialized');
+            });
+        }
     }
     catch (error) {
         console.error('[Server] Failed to start:', error);
     }
 };
-start();
+startServer();
+exports.default = app;

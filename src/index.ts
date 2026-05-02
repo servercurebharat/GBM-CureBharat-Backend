@@ -63,6 +63,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// Root Welcome Route
+app.get('/', (req, res) => {
+  res.send(`
+    <div style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0d0f14; color: white;">
+      <h1 style="color: #3b82f6;">🚀 CureBharat API is Live</h1>
+      <p style="opacity: 0.6;">Backend Engine Status: Operational</p>
+      <div style="margin-top: 20px; padding: 10px 20px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px border-white/10;">
+        <code style="color: #60a5fa;">v1.0.0-production</code>
+      </div>
+    </div>
+  `);
+});
+
 // Route Handlers
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
