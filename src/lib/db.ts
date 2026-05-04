@@ -6,26 +6,42 @@ if (!MONGODB_URI) {
   console.error('MONGODB_URI is missing in .env');
 }
 
-let isConnected = false;
-
+// Cache connection across serverless invocations using Mongoose's native state.
+// readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
 export const connectDB = async () => {
-  if (isConnected) return;
+  // If already connected, reuse the existing connection
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  // If currently connecting, wait for it to complete
+  if (mongoose.connection.readyState === 2) {
+    await new Promise<void>((resolve) => {
+      mongoose.connection.once('connected', resolve);
+    });
+    return;
+  }
 
   try {
-    console.log(`[DB] Connecting to MongoDB...`);
     if (!MONGODB_URI) {
       throw new Error('MONGODB_URI is empty or undefined');
     }
-    
+
+    console.log('[DB] Connecting to MongoDB...');
+
     await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-      bufferCommands: true, // Re-enable buffering but we will handle the wait
+      // Increased for Vercel serverless cold starts — Atlas takes time to accept
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
+      // Disable buffering: fail fast if not connected instead of hanging
+      bufferCommands: false,
+      maxPoolSize: 10,
     });
-    
-    isConnected = true;
+
     console.log('✅ MongoDB connected successfully');
   } catch (error: any) {
     console.error('❌ MongoDB connection error:', error.message);
-    throw error; // Throw so the middleware can catch it
+    throw error;
   }
 };
