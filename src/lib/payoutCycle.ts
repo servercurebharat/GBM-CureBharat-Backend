@@ -71,10 +71,21 @@ export async function runPayoutCycle(cycleMonth: string): Promise<void> {
   }
 }
 
+import { runMonthlyActivityAudit } from './rankEngine';
+
 /**
- * Schedule cron: 5th of every month at 09:00 AM
+ * Schedule crons for MLM maintenance
  */
-export function schedulePayoutCycle(): void {
+export function scheduleMaintenanceCrons(): void {
+  // 1. Activity Audit: 1st of every month at 00:01 AM
+  cron.schedule('1 0 1 * *', async () => {
+    const now = new Date();
+    const cycleMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    console.log(`[Cron] Triggering Monthly Activity Audit for ${cycleMonth}`);
+    await runMonthlyActivityAudit(cycleMonth);
+  });
+
+  // 2. Payout settlement: 5th of every month at 09:00 AM
   cron.schedule('0 9 5 * *', async () => {
     const now = new Date();
     // Get last month in YYYY-MM format

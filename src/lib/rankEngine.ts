@@ -32,13 +32,13 @@ export async function checkAndPromote(userId: string): Promise<void> {
 
   // 2. HCM → HBA promotion
   if (user.rank === 'HCM') {
-    // Criteria: 3 HCMs in direct downline
+    // Criteria: 5 HCMs in direct downline AND Total Team size >= 30 (5 HCM + 25 HCC)
     const hcmDownlineCount = await User.countDocuments({ 
       referrerId: user._id, 
       rank: 'HCM' 
     });
 
-    if (hcmDownlineCount >= 3) {
+    if (hcmDownlineCount >= 5 && user.teamSize >= 30) {
       console.log(`[RankEngine] User ${user.memberId} promoted to HBA`);
       user.rank = 'HBA';
       user.role = 'hba';
@@ -51,13 +51,13 @@ export async function checkAndPromote(userId: string): Promise<void> {
 
   // 3. HBA → SH promotion
   if (user.rank === 'HBA') {
-    // Future: Define SH promotion criteria (e.g. 3 HBAs)
+    // Criteria: 5 HBAs in direct downline
     const hbaDownlineCount = await User.countDocuments({
       referrerId: user._id,
       rank: 'HBA'
     });
 
-    if (hbaDownlineCount >= 3) {
+    if (hbaDownlineCount >= 5) {
       console.log(`[RankEngine] User ${user.memberId} promoted to SH`);
       user.rank = 'SH';
       user.role = 'sh';
@@ -81,13 +81,52 @@ async function updateUplineTeamSize(referrerId: string): Promise<void> {
   }
 }
 
-async function sendPromotionNotification(
-  user: IUser, 
-  newRank: string
-): Promise<void> {
-  console.log(`[NOTIFICATION] User ${user.memberId} (${user.name}) promoted to ${newRank}`);
+/**
+ * MONTHLY MAINTENANCE ENGINE
+ * Runs at the start of each month to check activity and reset counters.
+ */
+export async function runMonthlyActivityAudit(cycleMonth: string): Promise<void> {
+  console.log(`[RankEngine] Starting Monthly Activity Audit for: ${cycleMonth}`);
   
-  // TODO: Integrate SMS gateway here
-  // const message = `Congratulations ${user.name}! You have been promoted to ${newRank} in CureBharat. Keep it up!`;
-  // await sendSMS(user.mobile, message);
+  const users = await User.find({});
+  
+  for (const user of users) {
+    let isActive = false;
+
+    // Check criteria based on rank
+    if (user.rank === 'HCC') {
+      // HCC: 1 Personal Sale/Month
+      if (user.personalSalesThisMonth >= 1) isActive = true;
+    } else if (user.rank === 'HCM') {
+      // HCM: 1 Personal Sale AND 1 HCC Recruitment/Month
+      if (user.personalSalesThisMonth >= 1 && user.personalRecruitsThisMonth >= 1) isActive = true;
+    } else if (user.rank === 'HBA') {
+      // HBA: 1 Personal Sale AND 1 HCM Recruitment/Month
+      if (user.personalSalesThisMonth >= 1 && user.personalRecruitsThisMonth >= 1) isActive = true;
+    } else {
+      // SH/Admin: Always active for now
+      isActive = true;
+    }
+
+    // Update status
+    user.status = isActive ? 'active' : 'inactive';
+    
+    // Reset monthly counters
+    user.personalSalesThisMonth = 0;
+    user.personalRecruitsThisMonth = 0;
+    
+    await user.save();
+  }
+  
+  console.log(`[RankEngine] Monthly Audit Completed.`);
+}
+
+/**
+ * Sends a notification (SMS/Email) to the user about their rank promotion
+ */
+async function sendPromotionNotification(user: IUser, newRank: string): Promise<void> {
+  console.log(`[NOTIFICATION] Congratulations ${user.name}! You have been promoted to ${newRank}! 🚀🚀🚀`);
+  
+  // Future: Integrate SMS/Email API here
+  // await sendSMS(user.mobile, `Congratulations! You are now a ${newRank} at CureBharat.`);
 }
