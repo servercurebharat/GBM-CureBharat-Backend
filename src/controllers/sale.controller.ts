@@ -91,6 +91,19 @@ export const getMySales = async (req: any, res: Response) => {
       // HCM/HBA logic: see sales of downline
     }
 
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search as string, 'i');
+      query.$or = [
+        { customerName: searchRegex },
+        { customerMobile: searchRegex },
+        { policyId: searchRegex }
+      ];
+    }
+
+    if (req.query.status && req.query.status !== 'all') {
+      query.status = req.query.status;
+    }
+
     const sales = await Sale.find(query)
       .populate('plan', 'name price')
       .populate('hccId', 'name memberId')
