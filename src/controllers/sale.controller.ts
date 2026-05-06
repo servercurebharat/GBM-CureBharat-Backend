@@ -9,10 +9,8 @@ export const createSale = async (req: any, res: Response) => {
   try {
     const { customerName, customerMobile, planId, ePinCode } = req.body;
 
-    // 1. Verify HCC role
-    if (req.user.role !== 'hcc') {
-      return res.status(403).json({ success: false, message: 'Only HCC can record sales' });
-    }
+    // 1. Any role can record a sale (Personal Sale)
+    const seller = req.user;
 
     // 2. Fetch Plan
     const plan = await Plan.findById(planId);
@@ -87,8 +85,18 @@ export const getMySales = async (req: any, res: Response) => {
       query.hccId = _id;
     } else if (role === 'admin' || role === 'sh') {
       // Admin sees everything
-    } else {
-      // HCM/HBA logic: see sales of downline
+    } else if (role === 'hcm') {
+      // HCM sees their own sales + sales where they are the hcmId
+      query.$or = [
+        { hccId: _id },
+        { hcmId: _id }
+      ];
+    } else if (role === 'hba') {
+      // HBA sees their own sales + sales where they are the hbaId
+      query.$or = [
+        { hccId: _id },
+        { hbaId: _id }
+      ];
     }
 
     if (req.query.search) {

@@ -227,11 +227,15 @@ export const register = async (req: any, res: Response) => {
       }
     }
 
-    // Update referrer's team size
+    // Update referrer's team size and monthly recruitment count
     if (referrer) {
-      await User.findByIdAndUpdate(referrer._id, { $inc: { teamSize: 1 } });
+      await User.findByIdAndUpdate(referrer._id, { 
+        $inc: { teamSize: 1, personalRecruitsThisMonth: 1 } 
+      });
     } else if (requester && requesterRole !== 'admin') {
-      await User.findByIdAndUpdate(requester._id, { $inc: { teamSize: 1 } });
+      await User.findByIdAndUpdate(requester._id, { 
+        $inc: { teamSize: 1, personalRecruitsThisMonth: 1 } 
+      });
     }
 
     return res.status(201).json({ 

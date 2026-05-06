@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IPlan extends Document {
   name: string;
+  category: 'onboarding' | 'service';
   price: number; // in paise
   businessVolume: number; // in paise
   isCommissionable: boolean;
@@ -12,6 +13,7 @@ export interface IPlan extends Document {
 
 const planSchema = new Schema<IPlan>({
   name: { type: String, required: true },
+  category: { type: String, enum: ['onboarding', 'service'], default: 'service' },
   price: { type: Number, required: true },
   businessVolume: { type: Number, required: true },
   isCommissionable: { type: Boolean, default: true },

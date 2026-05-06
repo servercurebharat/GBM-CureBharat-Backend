@@ -17,8 +17,7 @@ import planRoutes from './routes/plan.routes';
 import adminRoutes from './routes/admin.routes';
 
 // Logic & Cron
-import { scheduleActivityCheck } from './lib/activityCheck';
-import { schedulePayoutCycle } from './lib/payoutCycle';
+import { scheduleMaintenanceCrons } from './lib/payoutCycle';
 
 // Critical: Validate environment before proceeding
 validateEnv();
@@ -133,8 +132,7 @@ const startServer = async () => {
         console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
         
         // Initialize Cron Jobs
-        scheduleActivityCheck();
-        schedulePayoutCycle();
+        scheduleMaintenanceCrons();
         console.log('[Server] Scheduled maintenance tasks initialized');
       });
     }

@@ -26,6 +26,8 @@ export interface IUser extends Document {
   };
   personalSalesCount: number;
   personalSalesThisMonth: number;
+  personalRecruitsThisMonth: number;
+  lastActiveMonth?: string;
   teamSize: number;
   joiningDate: Date;
   createdAt: Date;
@@ -57,6 +59,8 @@ const userSchema = new Schema<IUser>({
   },
   personalSalesCount: { type: Number, default: 0 },
   personalSalesThisMonth: { type: Number, default: 0 },
+  personalRecruitsThisMonth: { type: Number, default: 0 },
+  lastActiveMonth: { type: String }, // YYYY-MM
   teamSize: { type: Number, default: 0 },
   joiningDate: { type: Date, default: Date.now },
 }, { timestamps: true });

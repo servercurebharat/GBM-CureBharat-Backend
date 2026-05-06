@@ -16,6 +16,21 @@ export const getMyWallet = async (req: any, res: Response) => {
     // Sort ledger by date descending
     const sortedLedger = wallet.ledger.sort((a: any, b: any) => b.date - a.date);
 
+    // Calculate breakdown
+    const breakdown = {
+      direct: 0,
+      override: 0,
+      leadership: 0
+    };
+
+    wallet.ledger.forEach((entry: any) => {
+      if (entry.status === 'provisional' || entry.status === 'final') {
+        if (entry.type === 'direct') breakdown.direct += entry.amount;
+        if (entry.type === 'override') breakdown.override += entry.amount;
+        if (entry.type === 'leadership') breakdown.leadership += entry.amount;
+      }
+    });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -23,6 +38,7 @@ export const getMyWallet = async (req: any, res: Response) => {
         finalBalance: wallet.finalBalance,
         totalEarned: wallet.totalEarned,
         totalWithdrawn: wallet.totalWithdrawn,
+        earningsBreakdown: breakdown,
         ledger: sortedLedger.slice(0, 50) // Return last 50 entries
       }
     });

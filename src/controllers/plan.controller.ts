@@ -5,7 +5,7 @@ import Plan from '../models/Plan';
  * GET /api/plans
  * Fetch all active plans
  */
-export const getAllPlans = async (req: Request, res: Response) => {
+export const getPlans = async (req: Request, res: Response) => {
   try {
     const plans = await Plan.find({ isActive: true }).sort({ price: 1 });
     res.json({ success: true, data: plans });
@@ -15,12 +15,12 @@ export const getAllPlans = async (req: Request, res: Response) => {
 };
 
 /**
- * GET /api/plans/commissionable
- * Fetch only plans that trigger commission
+ * GET /api/plans/admin/all
+ * Fetch all plans including inactive ones (Admin Only)
  */
-export const getCommissionablePlans = async (req: Request, res: Response) => {
+export const getAllPlansAdmin = async (req: Request, res: Response) => {
   try {
-    const plans = await Plan.find({ isActive: true, isCommissionable: true }).sort({ price: 1 });
+    const plans = await Plan.find().sort({ createdAt: -1 });
     res.json({ success: true, data: plans });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -34,8 +34,8 @@ export const getCommissionablePlans = async (req: Request, res: Response) => {
 export const createPlan = async (req: Request, res: Response) => {
   try {
     const planData = req.body;
-    const plan = await Plan.create(planData);
-    res.status(201).json({ success: true, data: plan });
+    const newPlan = await Plan.create(planData);
+    res.status(201).json({ success: true, data: newPlan });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -43,13 +43,19 @@ export const createPlan = async (req: Request, res: Response) => {
 
 /**
  * PUT /api/plans/:id
- * Update a plan (Admin Only)
+ * Update an existing plan (Admin Only)
  */
 export const updatePlan = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const plan = await Plan.findByIdAndUpdate(id, req.body, { new: true });
-    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+    const updates = req.body;
+    
+    const plan = await Plan.findByIdAndUpdate(id, updates, { new: true });
+    
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Plan not found' });
+    }
+    
     res.json({ success: true, data: plan });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -58,14 +64,18 @@ export const updatePlan = async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/plans/:id
- * Soft delete a plan (Admin Only)
+ * Delete a plan (Admin Only)
  */
 export const deletePlan = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const plan = await Plan.findByIdAndUpdate(id, { isActive: false }, { new: true });
-    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
-    res.json({ success: true, message: 'Plan deactivated successfully' });
+    const plan = await Plan.findByIdAndDelete(id);
+    
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Plan not found' });
+    }
+    
+    res.json({ success: true, message: 'Plan deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
