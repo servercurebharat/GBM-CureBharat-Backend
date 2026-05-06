@@ -1,7 +1,10 @@
 import { Response } from 'express';
 import Wallet from '../models/Wallet';
 import User from '../models/User';
+import Withdrawal from '../models/Withdrawal';
+import Sale from '../models/Sale';
 import { runPayoutCycle } from '../lib/payoutCycle';
+import crypto from 'crypto';
 
 export const getMyWallet = async (req: any, res: Response) => {
   try {
@@ -31,6 +34,30 @@ export const getMyWallet = async (req: any, res: Response) => {
       }
     });
 
+    // Fetch Withdrawal Stats
+    const pendingWithdrawals = await Withdrawal.find({ user: req.user._id, status: { $in: ['pending', 'processing'] } });
+    const successfulWithdrawals = await Withdrawal.find({ user: req.user._id, status: 'success' });
+    
+    // Fetch Total Sales Value
+    const sales = await Sale.find({ hccId: req.user._id });
+    const totalSalesValue = sales.reduce((acc, sale) => acc + sale.saleAmount, 0);
+
+    // Calculate TDS
+    const withdrawalRecords = await Withdrawal.find({ user: req.user._id });
+    const totalTDS = withdrawalRecords.reduce((acc, w) => acc + (w.tdsAmount || 0), 0);
+
+    const pendingCount = pendingWithdrawals.length;
+    const pendingValue = pendingWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
+    const successfulCount = successfulWithdrawals.length;
+    const successfulValue = successfulWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
+
+    // Determine Cap Amount based on role
+    let capAmount = 100000; // Default ₹1000 for HCC
+    if (req.user.role === 'sh') capAmount = 1000000; // ₹10,000
+    if (req.user.role === 'hba') capAmount = 500000; // ₹5,000
+    if (req.user.role === 'hcm') capAmount = 250000; // ₹2,500
+    if (req.user.role === 'hcc') capAmount = 100000; // ₹1,000
+
     return res.status(200).json({
       success: true,
       data: {
@@ -38,8 +65,13 @@ export const getMyWallet = async (req: any, res: Response) => {
         finalBalance: wallet.finalBalance,
         totalEarned: wallet.totalEarned,
         totalWithdrawn: wallet.totalWithdrawn,
+        totalSalesValue,
+        capAmount, 
+        pendingPayouts: { count: pendingCount, value: pendingValue },
+        successfulPayouts: { count: successfulCount, value: successfulValue },
+        totalTDS,
         earningsBreakdown: breakdown,
-        ledger: sortedLedger.slice(0, 50) // Return last 50 entries
+        ledger: sortedLedger.slice(0, 50)
       }
     });
   } catch (error: any) {
@@ -66,29 +98,66 @@ export const requestWithdrawal = async (req: any, res: Response) => {
       return res.status(400).json({ success: false, message: 'Insufficient final balance' });
     }
 
-    // 1. Deduct from balance
+    // 1. Calculate TDS and Net
+    const tdsAmount = Math.round(amount * 0.05); // 5% TDS
+    const netAmount = amount - tdsAmount;
+
+    // 2. Generate Request ID
+    const requestId = `PAY-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+    // 3. Create Withdrawal Record
+    const withdrawal = new Withdrawal({
+      requestId,
+      user: req.user._id,
+      grossAmount: amount,
+      tdsAmount,
+      netAmount,
+      status: 'pending',
+      requestedAt: new Date()
+    });
+
+    await withdrawal.save();
+
+    // 4. Deduct from balance
     wallet.finalBalance -= amount;
     wallet.totalWithdrawn += amount;
 
-    // 2. Add ledger entry
+    // 5. Add ledger entry
     wallet.ledger.push({
       amount: -amount,
       type: 'withdrawal',
-      description: `Withdrawal request for ₹${amount}`,
+      description: `Withdrawal request ${requestId} for ₹${amount / 100}`,
       status: 'final',
       date: new Date(),
-      cycleMonth: '' // Not tied to a specific cycle
+      cycleMonth: '' 
     });
 
     await wallet.save();
 
     return res.status(200).json({ 
       success: true, 
-      message: 'Withdrawal request submitted and balance updated' 
+      message: 'Withdrawal request submitted successfully',
+      data: withdrawal
     });
 
   } catch (error: any) {
     console.error('[Wallet] requestWithdrawal Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const getMyWithdrawals = async (req: any, res: Response) => {
+  try {
+    const withdrawals = await Withdrawal.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    return res.status(200).json({
+      success: true,
+      data: withdrawals
+    });
+  } catch (error: any) {
+    console.error('[Wallet] getMyWithdrawals Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

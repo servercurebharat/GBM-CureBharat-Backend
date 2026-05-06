@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const db_1 = require("./lib/db");
 const validateEnv_1 = require("./config/validateEnv");
@@ -18,20 +17,31 @@ const wallet_routes_1 = __importDefault(require("./routes/wallet.routes"));
 const epin_routes_1 = __importDefault(require("./routes/epin.routes"));
 const plan_routes_1 = __importDefault(require("./routes/plan.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const team_routes_1 = __importDefault(require("./routes/team.routes"));
 // Logic & Cron
-const activityCheck_1 = require("./lib/activityCheck");
 const payoutCycle_1 = require("./lib/payoutCycle");
 // Critical: Validate environment before proceeding
 (0, validateEnv_1.validateEnv)();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
-// Middleware
-app.use((0, cors_1.default)({
-    origin: true, // Allow all origins for testing Vercel deployment
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-}));
+// Manual CORS middleware for Vercel robustness
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With');
+    // Instantly handle OPTIONS preflight
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
 app.use(express_1.default.json({ limit: '50mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
 app.use((0, cookie_parser_1.default)());
@@ -59,6 +69,21 @@ app.use((req, res, next) => {
     };
     next();
 });
+// Database Connection Check Middleware
+const dbCheck = async (req, res, next) => {
+    try {
+        await (0, db_1.connectDB)();
+        next();
+    }
+    catch (error) {
+        res.status(503).json({
+            success: false,
+            message: 'Database connection failed',
+            error: error.message
+        });
+    }
+};
+app.use('/api', dbCheck);
 // Root Welcome Route
 app.get('/', (req, res) => {
     res.send(`
@@ -79,6 +104,7 @@ app.use('/api/wallet', wallet_routes_1.default);
 app.use('/api/epins', epin_routes_1.default);
 app.use('/api/plans', plan_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
+app.use('/api/team', team_routes_1.default);
 // Health Check
 app.get('/api/health', (req, res) => {
     res.json({
@@ -95,8 +121,7 @@ const startServer = async () => {
             app.listen(PORT, () => {
                 console.log(`[Server] CureBharat MLM Backend running on port ${PORT}`);
                 // Initialize Cron Jobs
-                (0, activityCheck_1.scheduleActivityCheck)();
-                (0, payoutCycle_1.schedulePayoutCycle)();
+                (0, payoutCycle_1.scheduleMaintenanceCrons)();
                 console.log('[Server] Scheduled maintenance tasks initialized');
             });
         }

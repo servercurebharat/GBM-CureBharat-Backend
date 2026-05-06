@@ -11,36 +11,37 @@ const commission_1 = require("../lib/commission");
 const createSale = async (req, res) => {
     try {
         const { customerName, customerMobile, planId, ePinCode } = req.body;
-        // 1. Verify HCC role
-        if (req.user.role !== 'hcc') {
-            return res.status(403).json({ success: false, message: 'Only HCC can record sales' });
-        }
+        // 1. Any role can record a sale (Personal Sale)
+        const seller = req.user;
         // 2. Fetch Plan
         const plan = await Plan_1.default.findById(planId);
         if (!plan || !plan.isActive) {
             return res.status(400).json({ success: false, message: 'Invalid or inactive plan' });
         }
-        // 3. E-Pin Validation (if provided)
+        // 3. Calculate Total Billing Amount (Price + GST)
+        const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
+        const totalAmount = plan.price + gstAmount;
+        // 4. E-Pin Validation (if provided)
         let epin = null;
         if (ePinCode) {
             epin = await EPin_1.default.findOne({ pinCode: ePinCode, status: 'unused' });
             if (!epin) {
                 return res.status(400).json({ success: false, message: 'E-Pin invalid or already used' });
             }
-            if (epin.value < plan.price) {
-                return res.status(400).json({ success: false, message: 'E-Pin value insufficient for this plan' });
+            if (epin.value < totalAmount) {
+                return res.status(400).json({ success: false, message: 'E-Pin value insufficient for this plan (including GST)' });
             }
         }
-        // 4. Generate unique Policy ID
+        // 5. Generate unique Policy ID
         const policyId = `CB-POL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        // 5. Create Sale Record
+        // 6. Create Sale Record
         const newSale = new Sale_1.default({
             policyId,
             hccId: req.user._id,
             plan: planId,
             customerName,
             customerMobile,
-            saleAmount: plan.price,
+            saleAmount: totalAmount,
             businessVolume: plan.businessVolume,
             cycleMonth: (0, commission_1.getCurrentCycleMonth)(),
             status: 'active'
@@ -81,8 +82,19 @@ const getMySales = async (req, res) => {
         else if (role === 'admin' || role === 'sh') {
             // Admin sees everything
         }
-        else {
-            // HCM/HBA logic: see sales of downline
+        else if (role === 'hcm') {
+            // HCM sees their own sales + sales where they are the hcmId
+            query.$or = [
+                { hccId: _id },
+                { hcmId: _id }
+            ];
+        }
+        else if (role === 'hba') {
+            // HBA sees their own sales + sales where they are the hbaId
+            query.$or = [
+                { hccId: _id },
+                { hbaId: _id }
+            ];
         }
         const sales = await Sale_1.default.find(query)
             .populate('plan', 'name price')

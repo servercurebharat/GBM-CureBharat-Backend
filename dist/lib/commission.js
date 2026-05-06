@@ -36,103 +36,104 @@ async function processCommission(saleId) {
     // Use businessVolume as the base for commission calculation (₹ excluding GST)
     const baseAmount = sale.businessVolume;
     const cycleMonth = sale.cycleMonth;
-    // 1. HCC DIRECT INCOME (40% of baseAmount)
-    const hcc = await User_1.default.findById(sale.hccId);
-    if (!hcc) {
-        console.error(`[Commission] Seller ${sale.seller} not found for sale ${saleId}`);
+    // 1. DIRECT INCOME (40% of baseAmount)
+    // This goes to the actual seller, regardless of their role (HCC/HCM/HBA/SH)
+    const seller = await User_1.default.findById(sale.hccId);
+    if (!seller) {
+        console.error(`[Commission] Seller not found for sale ${saleId}`);
         return;
     }
-    const hccIncome = Math.round(baseAmount * 0.40);
+    const directIncome = Math.round(baseAmount * 0.40);
     await addToWallet({
-        userId: hcc._id,
-        amount: hccIncome,
+        userId: seller._id,
+        amount: directIncome,
         type: 'direct',
         description: `Direct sale commission - Policy ${sale.policyId}`,
-        sourceUserId: hcc._id,
+        sourceUserId: seller._id,
         status: 'provisional',
         cycleMonth
     });
-    hcc.personalSalesCount += 1;
-    hcc.personalSalesThisMonth += 1;
-    hcc.lastSaleDate = new Date();
-    await hcc.save();
-    // 2. HCM OVERRIDE (40% of HCC Direct Income)
+    seller.personalSalesCount += 1;
+    seller.personalSalesThisMonth += 1;
+    seller.lastActiveMonth = cycleMonth;
+    await seller.save();
+    // 2. HCM OVERRIDE (40% of Direct Income)
+    // Only calculate if the seller is an HCC
+    let hccDirectIncome = directIncome;
     let hcm = null;
-    if (hcc.referrerId) {
-        hcm = await findNextActiveUpline(hcc.referrerId, 'HCM');
+    if (seller.role === 'hcc' && seller.referrerId) {
+        hcm = await findNextActiveUpline(seller.referrerId, 'HCM');
     }
     let hcmIncome = 0;
     if (hcm) {
-        hcmIncome = Math.round(hccIncome * 0.40);
+        sale.hcmId = hcm._id;
+        hcmIncome = Math.round(hccDirectIncome * 0.40);
         await addToWallet({
             userId: hcm._id,
             amount: hcmIncome,
             type: 'override',
-            description: `Override from HCC ${hcc.memberId} - Policy ${sale.policyId}`,
-            sourceUserId: hcc._id,
+            description: `Override from HCC ${seller.memberId} - Policy ${sale.policyId}`,
+            sourceUserId: seller._id,
             status: 'provisional',
             cycleMonth
         });
     }
     else {
-        console.log(`[Commission] No active HCM found in upline for HCC ${hcc.memberId}`);
+        console.log(`[Commission] No active HCM found in upline for HCC ${seller.memberId}`);
     }
-    // 3. HBA OVERRIDE (40% of HCM Override Income)
+    // 3. HBA OVERRIDE (40% of HCM Potential Income)
     let hba = null;
-    if (hcm && hcm.referrerId) {
-        hba = await findNextActiveUpline(hcm.referrerId, 'HBA');
+    const potentialHcmIncome = Math.round(directIncome * 0.40);
+    if (seller.role === 'hba') {
+        // If seller is HBA, no HCM override exists, and they got the 40% direct.
+        // SH will get the 2% later.
     }
-    else if (hcc.referrerId) {
-        // If no HCM was found, look for HBA starting from HCC's referrer
-        hba = await findNextActiveUpline(hcc.referrerId, 'HBA');
+    else {
+        // Look for HBA starting from the best possible point
+        const searchStartId = hcm ? hcm.referrerId : seller.referrerId;
+        if (searchStartId) {
+            hba = await findNextActiveUpline(searchStartId, 'HBA');
+        }
     }
     let hbaIncome = 0;
     if (hba) {
-        // Note: HBA gets 40% of what the HCM WOULD have earned (hccIncome * 0.4)
-        // even if the HCM was missing/inactive (Pass-up logic)
-        const potentialHcmIncome = Math.round(hccIncome * 0.40);
+        sale.hbaId = hba._id;
+        // HBA always gets 40% of a potential HCM's income (Pass-up logic)
         hbaIncome = Math.round(potentialHcmIncome * 0.40);
         await addToWallet({
             userId: hba._id,
             amount: hbaIncome,
             type: 'override',
             description: `Override from ${hcm ? 'HCM ' + hcm.memberId : 'downline'} - Policy ${sale.policyId}`,
-            sourceUserId: hcm ? hcm._id : hcc._id,
+            sourceUserId: seller._id,
             status: 'provisional',
             cycleMonth
         });
     }
-    else {
-        console.log(`[Commission] No active HBA found in upline`);
-    }
     // 4. SH LEADERSHIP BONUS (2% of baseAmount)
     let sh = null;
-    if (hba && hba.referrerId) {
-        sh = await findNextActiveUpline(hba.referrerId, 'SH');
-    }
-    else if (hcc.referrerId) {
-        sh = await findNextActiveUpline(hcc.referrerId, 'SH');
+    const searchStartIdForSh = hba ? hba.referrerId : (hcm ? hcm.referrerId : seller.referrerId);
+    if (searchStartIdForSh) {
+        sh = await findNextActiveUpline(searchStartIdForSh, 'SH');
     }
     if (sh) {
+        sale.shId = sh._id;
         const shIncome = Math.round(baseAmount * 0.02);
         await addToWallet({
             userId: sh._id,
             amount: shIncome,
             type: 'leadership',
             description: `2% leadership bonus - Policy ${sale.policyId}`,
-            sourceUserId: hcc._id,
+            sourceUserId: seller._id,
             status: 'provisional',
             cycleMonth
         });
-    }
-    else {
-        console.log(`[Commission] No active SH found in upline`);
     }
     // FINALIZE
     sale.commissionProcessed = true;
     await sale.save();
     // TRIGGER RANK CHECK
-    await (0, rankEngine_1.checkAndPromote)(hcc._id.toString()).catch(err => console.error(`[RankEngine] Error:`, err));
+    await (0, rankEngine_1.checkAndPromote)(seller._id.toString()).catch(err => console.error(`[RankEngine] Error:`, err));
     console.log(`[Commission] Completed for sale ${sale.policyId}`);
 }
 // Helper: addToWallet

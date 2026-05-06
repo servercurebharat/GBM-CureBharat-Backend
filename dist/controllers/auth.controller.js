@@ -104,8 +104,8 @@ const verifyOTP = async (req, res) => {
         // Set httpOnly cookie
         res.cookie('auth_token', token, {
             httpOnly: true,
-            secure: true, // Must be true for sameSite: 'none'
-            sameSite: 'none', // Required for cross-domain cookies
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
         return res.status(200).json({
@@ -137,9 +137,10 @@ const register = async (req, res) => {
         // Define Allowed Target Roles
         const permissions = {
             'admin': ['sh', 'hba', 'hcm', 'hcc'],
-            'sh': ['hba', 'hcc'],
+            'sh': ['hba', 'hcm', 'hcc'],
             'hba': ['hcm', 'hcc'],
-            'hcm': ['hcm', 'hcc'],
+            'hcm': ['hcc'],
+            'hcc': ['hcc'],
             'public': ['hcc']
         };
         const allowedRoles = permissions[requesterRole] || ['hcc'];
@@ -196,12 +197,16 @@ const register = async (req, res) => {
                 await epin.save();
             }
         }
-        // Update referrer's team size
+        // Update referrer's team size and monthly recruitment count
         if (referrer) {
-            await User_1.default.findByIdAndUpdate(referrer._id, { $inc: { teamSize: 1 } });
+            await User_1.default.findByIdAndUpdate(referrer._id, {
+                $inc: { teamSize: 1, personalRecruitsThisMonth: 1 }
+            });
         }
         else if (requester && requesterRole !== 'admin') {
-            await User_1.default.findByIdAndUpdate(requester._id, { $inc: { teamSize: 1 } });
+            await User_1.default.findByIdAndUpdate(requester._id, {
+                $inc: { teamSize: 1, personalRecruitsThisMonth: 1 }
+            });
         }
         return res.status(201).json({
             success: true,

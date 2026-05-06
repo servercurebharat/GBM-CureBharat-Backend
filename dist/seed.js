@@ -14,13 +14,11 @@ const Config_1 = __importDefault(require("./models/Config"));
 dotenv_1.default.config();
 async function seed() {
     try {
-        // --- CONNECT DB ---
         const mongoUri = process.env.MONGODB_URI;
         if (!mongoUri)
             throw new Error('MONGODB_URI not found in env');
         await mongoose_1.default.connect(mongoUri);
         console.log('Connected to MongoDB');
-        // --- CLEAR ALL COLLECTIONS ---
         await Promise.all([
             User_1.default.deleteMany({}),
             Plan_1.default.deleteMany({}),
@@ -29,270 +27,157 @@ async function seed() {
             Config_1.default.deleteMany({})
         ]);
         console.log('Collections cleared');
-        // --- SEED SYSTEM CONFIG ---
-        const defaultConfig = [
+        // --- CONFIG ---
+        await Config_1.default.insertMany([
             { key: 'hcc_direct_percent', value: 40, description: 'Direct income for HCC from policy BV' },
             { key: 'hcm_override_percent', value: 40, description: 'Override for HCM from HCC earnings' },
             { key: 'hba_override_percent', value: 40, description: 'Override for HBA from HCM earnings' },
             { key: 'sh_leadership_percent', value: 2, description: 'Leadership bonus for SH from state BV' },
             { key: 'min_sales_active', value: 1, description: 'Min sales per month to remain active' },
-            { key: 'hcc_to_hcm_sales', value: 12, description: 'Personal sales needed for HCM rank' },
-            { key: 'hcc_to_hcm_recruits', value: 12, description: 'Direct recruits needed for HCM rank' }
-        ];
-        await Config_1.default.insertMany(defaultConfig);
-        console.log('System configuration seeded');
-        // --- CREATE WELLNESS PLANS ---
-        const plans = await Plan_1.default.insertMany([
-            {
-                name: 'Basic Wellness',
-                price: 99900, // ₹999 in paise
-                businessVolume: 0,
-                isCommissionable: false,
-                gstPercent: 18,
-                description: 'Entry level onboarding plan. Non-commissionable.',
-                isActive: true
-            },
-            {
-                name: 'Wellness Plus',
-                price: 149900, // ₹1499 in paise
-                businessVolume: 0,
-                isCommissionable: false,
-                gstPercent: 18,
-                description: 'Standard onboarding plan. Non-commissionable.',
-                isActive: true
-            },
-            {
-                name: 'Super Suraksha',
-                price: 199900, // ₹1999 in paise
-                businessVolume: 169406, // ₹1999 / 1.18 = ₹1694.06 in paise
-                isCommissionable: true,
-                gstPercent: 18,
-                description: 'Core wellness insurance plan. Commissionable.',
-                isActive: true
-            },
-            {
-                name: 'Family Suraksha',
-                price: 299900, // ₹2999 in paise
-                businessVolume: 254152,
-                isCommissionable: true,
-                gstPercent: 18,
-                description: 'Family wellness coverage plan. Commissionable.',
-                isActive: true
-            },
-            {
-                name: 'Premium Suraksha',
-                price: 499900, // ₹4999 in paise
-                businessVolume: 423644,
-                isCommissionable: true,
-                gstPercent: 18,
-                description: 'Premium full-coverage wellness plan. Commissionable.',
-                isActive: true
-            },
         ]);
-        console.log(`Created ${plans.length} plans`);
-        // --- CREATE ADMIN USER ---
-        const adminPassword = await bcryptjs_1.default.hash('Admin@123', 12);
+        // --- PLANS ---
+        await Plan_1.default.insertMany([
+            { name: 'Basic Wellness', price: 99900, businessVolume: 0, isCommissionable: false, gstPercent: 18, isActive: true },
+            { name: 'Wellness Plus', price: 149900, businessVolume: 0, isCommissionable: false, gstPercent: 18, isActive: true },
+            { name: 'Super Suraksha', price: 199900, businessVolume: 199900, isCommissionable: true, gstPercent: 18, isActive: true },
+            { name: 'Family Suraksha', price: 299900, businessVolume: 299900, isCommissionable: true, gstPercent: 18, isActive: true },
+            { name: 'Premium Suraksha', price: 499900, businessVolume: 499900, isCommissionable: true, gstPercent: 18, isActive: true },
+        ]);
+        // --- ADMIN ---
         const admin = await User_1.default.create({
-            name: 'System Administrator',
-            mobile: '9000000000',
-            email: 'admin@curebharat.in',
-            password: adminPassword,
-            role: 'admin',
-            rank: 'ADMIN',
-            memberId: 'CB-ADMIN-0001',
-            state: 'Maharashtra',
-            status: 'active',
-            kycStatus: 'approved',
-            personalSalesCount: 0,
-            personalSalesThisMonth: 0,
-            teamSize: 0,
-            joiningDate: new Date(),
+            name: 'System Administrator', mobile: '9000000000', email: 'admin@curebharat.in',
+            password: await bcryptjs_1.default.hash('Admin@123', 12), role: 'admin', rank: 'ADMIN',
+            memberId: 'CB-ADMIN-0001', state: 'Maharashtra', status: 'active', kycStatus: 'approved',
+            personalSalesCount: 0, personalSalesThisMonth: 0, teamSize: 0, joiningDate: new Date(),
         });
         await Wallet_1.default.create({ user: admin._id });
-        console.log('Admin created: mobile=9000000000, password=Admin@123');
-        // --- CREATE STATE HEAD ---
-        const shPassword = await bcryptjs_1.default.hash('SH@123456', 12);
+        // --- STATE HEAD: Rajesh Patel ---
         const sh = await User_1.default.create({
-            name: 'Rajesh Patel',
-            mobile: '9100000001',
-            email: 'rajesh.sh@curebharat.in',
-            password: shPassword,
-            role: 'sh',
-            rank: 'SH',
-            memberId: 'CB-SH-0001',
-            referrerId: admin._id,
-            state: 'Maharashtra',
-            status: 'active',
-            kycStatus: 'approved',
-            kycDocuments: {
-                aadhaarNumber: '1234-5678-9012',
-                panNumber: 'ABCDE1234F',
-                accountNumber: '1234567890',
-                ifscCode: 'HDFC0001234'
-            },
-            personalSalesCount: 0,
-            personalSalesThisMonth: 0,
-            teamSize: 0,
-            joiningDate: new Date(),
+            name: 'Rajesh Patel', mobile: '9100000001', email: 'rajesh.sh@curebharat.in',
+            password: await bcryptjs_1.default.hash('SH@123456', 12), role: 'sh', rank: 'SH',
+            memberId: 'CB-SH-0001', referrerId: admin._id, state: 'Maharashtra', status: 'active',
+            kycStatus: 'approved', gender: 'male', dob: new Date('1985-06-15'),
+            address: { street: '123 Business Hub, MG Road', city: 'Mumbai', state: 'Maharashtra', zipCode: '400001', country: 'India' },
+            bankDetails: { accountHolderName: 'Rajesh Patel', accountNumber: '1234567890', bankName: 'HDFC Bank', ifscCode: 'HDFC0001234', branchName: 'Fort Branch' },
+            personalSalesCount: 0, personalSalesThisMonth: 0, teamSize: 0, joiningDate: new Date(),
         });
         await Wallet_1.default.create({ user: sh._id });
-        console.log('SH created: mobile=9100000001');
-        // --- CREATE HBA ---
-        const hbaPassword = await bcryptjs_1.default.hash('HBA@123456', 12);
-        const hba = await User_1.default.create({
-            name: 'Sanjay Mehta',
-            mobile: '9200000001',
-            email: 'sanjay.hba@curebharat.in',
-            password: hbaPassword,
-            role: 'hba',
-            rank: 'HBA',
-            memberId: 'CB-HBA-0001',
-            referrerId: sh._id,
-            state: 'Maharashtra',
-            status: 'active',
-            kycStatus: 'approved',
-            kycDocuments: {
-                aadhaarNumber: '2345-6789-0123',
-                panNumber: 'BCDEF2345G',
-                accountNumber: '2345678901',
-                ifscCode: 'ICIC0001234'
-            },
-            personalSalesCount: 15,
-            personalSalesThisMonth: 3,
-            teamSize: 8,
-            joiningDate: new Date(),
+        console.log('✅ SH created: Rajesh Patel (9100000001 | SH@123456)');
+        // ============================================================
+        // HBA 1: Sanjay Mehta (directly under Rajesh Patel / SH)
+        // ============================================================
+        const hba1 = await User_1.default.create({
+            name: 'Sanjay Mehta', mobile: '9200000001', email: 'sanjay.hba@curebharat.in',
+            password: await bcryptjs_1.default.hash('HBA@123456', 12), role: 'hba', rank: 'HBA',
+            memberId: 'CB-HBA-0001', referrerId: sh._id, state: 'Maharashtra', status: 'active',
+            kycStatus: 'approved', personalSalesCount: 18, personalSalesThisMonth: 4, teamSize: 12, joiningDate: new Date(),
         });
-        await Wallet_1.default.create({ user: hba._id });
-        console.log('HBA created: mobile=9200000001');
-        // --- CREATE 2 HCMs ---
-        const hcmPassword = await bcryptjs_1.default.hash('HCM@123456', 12);
+        await Wallet_1.default.create({ user: hba1._id });
+        // HBA 2: Meena Joshi
+        const hba2 = await User_1.default.create({
+            name: 'Meena Joshi', mobile: '9200000002', email: 'meena.hba@curebharat.in',
+            password: await bcryptjs_1.default.hash('HBA@123456', 12), role: 'hba', rank: 'HBA',
+            memberId: 'CB-HBA-0002', referrerId: sh._id, state: 'Maharashtra', status: 'active',
+            kycStatus: 'approved', personalSalesCount: 12, personalSalesThisMonth: 2, teamSize: 8, joiningDate: new Date(),
+        });
+        await Wallet_1.default.create({ user: hba2._id });
+        // HBA 3: Arvind Kumar
+        const hba3 = await User_1.default.create({
+            name: 'Arvind Kumar', mobile: '9200000003', email: 'arvind.hba@curebharat.in',
+            password: await bcryptjs_1.default.hash('HBA@123456', 12), role: 'hba', rank: 'HBA',
+            memberId: 'CB-HBA-0003', referrerId: sh._id, state: 'Maharashtra', status: 'active',
+            kycStatus: 'pending', personalSalesCount: 9, personalSalesThisMonth: 1, teamSize: 5, joiningDate: new Date(),
+        });
+        await Wallet_1.default.create({ user: hba3._id });
+        console.log('✅ 3 HBAs created under Rajesh Patel');
+        // ============================================================
+        // HCMs under HBA 1 (Sanjay Mehta)
+        // ============================================================
+        const hcmPwd = await bcryptjs_1.default.hash('HCM@123456', 12);
         const hcm1 = await User_1.default.create({
-            name: 'Priya Desai',
-            mobile: '9300000001',
-            email: 'priya.hcm@curebharat.in',
-            password: hcmPassword,
-            role: 'hcm',
-            rank: 'HCM',
-            memberId: 'CB-HCM-0001',
-            referrerId: hba._id,
-            state: 'Maharashtra',
-            status: 'active',
-            kycStatus: 'approved',
-            kycDocuments: {
-                aadhaarNumber: '3456-7890-1234',
-                panNumber: 'CDEFG3456H',
-                accountNumber: '3456789012',
-                ifscCode: 'SBIN0001234'
-            },
-            personalSalesCount: 14,
-            personalSalesThisMonth: 2,
-            teamSize: 5,
-            joiningDate: new Date(),
+            name: 'Priya Desai', mobile: '9300000001', email: 'priya.hcm@curebharat.in',
+            password: hcmPwd, role: 'hcm', rank: 'HCM', memberId: 'CB-HCM-0001',
+            referrerId: hba1._id, state: 'Maharashtra', status: 'active', kycStatus: 'approved',
+            personalSalesCount: 14, personalSalesThisMonth: 3, teamSize: 5, joiningDate: new Date(),
         });
         await Wallet_1.default.create({ user: hcm1._id });
         const hcm2 = await User_1.default.create({
-            name: 'Vikram Shah',
-            mobile: '9300000002',
-            email: 'vikram.hcm@curebharat.in',
-            password: hcmPassword,
-            role: 'hcm',
-            rank: 'HCM',
-            memberId: 'CB-HCM-0002',
-            referrerId: hba._id,
-            state: 'Maharashtra',
-            status: 'active',
-            kycStatus: 'approved',
-            personalSalesCount: 13,
-            personalSalesThisMonth: 1,
-            teamSize: 3,
-            joiningDate: new Date(),
+            name: 'Vikram Shah', mobile: '9300000002', email: 'vikram.hcm@curebharat.in',
+            password: hcmPwd, role: 'hcm', rank: 'HCM', memberId: 'CB-HCM-0002',
+            referrerId: hba1._id, state: 'Maharashtra', status: 'active', kycStatus: 'approved',
+            personalSalesCount: 11, personalSalesThisMonth: 2, teamSize: 4, joiningDate: new Date(),
         });
         await Wallet_1.default.create({ user: hcm2._id });
-        console.log('2 HCMs created');
-        // --- CREATE 3 HCCs ---
-        const hccPassword = await bcryptjs_1.default.hash('HCC@123456', 12);
-        const hccUsers = await User_1.default.insertMany([
-            {
-                name: 'Amit Kumar',
-                mobile: '9400000001',
-                email: 'amit.hcc@curebharat.in',
-                password: hccPassword,
-                role: 'hcc',
-                rank: 'HCC',
-                memberId: 'CB-HCC-0001',
-                referrerId: hcm1._id,
-                state: 'Maharashtra',
-                status: 'active',
-                kycStatus: 'approved',
-                personalSalesCount: 6,
-                personalSalesThisMonth: 2,
-                teamSize: 0,
-                joiningDate: new Date(),
-            },
-            {
-                name: 'Neha Sharma',
-                mobile: '9400000002',
-                email: 'neha.hcc@curebharat.in',
-                password: hccPassword,
-                role: 'hcc',
-                rank: 'HCC',
-                memberId: 'CB-HCC-0002',
-                referrerId: hcm1._id,
-                state: 'Maharashtra',
-                status: 'active',
-                kycStatus: 'pending',
-                personalSalesCount: 3,
-                personalSalesThisMonth: 1,
-                teamSize: 0,
-                joiningDate: new Date(),
-            },
-            {
-                name: 'Ravi Joshi',
-                mobile: '9400000003',
-                email: 'ravi.hcc@curebharat.in',
-                password: hccPassword,
-                role: 'hcc',
-                rank: 'HCC',
-                memberId: 'CB-HCC-0003',
-                referrerId: hcm2._id,
-                state: 'Maharashtra',
-                status: 'inactive',
-                kycStatus: 'approved',
-                personalSalesCount: 1,
-                personalSalesThisMonth: 0,
-                teamSize: 0,
-                joiningDate: new Date(),
-            },
-        ]);
-        for (const hcc of hccUsers) {
-            await Wallet_1.default.create({ user: hcc._id });
+        // HCMs under HBA 2 (Meena Joshi)
+        const hcm3 = await User_1.default.create({
+            name: 'Sunita Rao', mobile: '9300000003', email: 'sunita.hcm@curebharat.in',
+            password: hcmPwd, role: 'hcm', rank: 'HCM', memberId: 'CB-HCM-0003',
+            referrerId: hba2._id, state: 'Maharashtra', status: 'active', kycStatus: 'approved',
+            personalSalesCount: 8, personalSalesThisMonth: 2, teamSize: 3, joiningDate: new Date(),
+        });
+        await Wallet_1.default.create({ user: hcm3._id });
+        const hcm4 = await User_1.default.create({
+            name: 'Deepak Nair', mobile: '9300000004', email: 'deepak.hcm@curebharat.in',
+            password: hcmPwd, role: 'hcm', rank: 'HCM', memberId: 'CB-HCM-0004',
+            referrerId: hba2._id, state: 'Maharashtra', status: 'inactive', kycStatus: 'approved',
+            personalSalesCount: 5, personalSalesThisMonth: 0, teamSize: 2, joiningDate: new Date(),
+        });
+        await Wallet_1.default.create({ user: hcm4._id });
+        // 1 HCM under HBA 3 (Arvind Kumar)
+        const hcm5 = await User_1.default.create({
+            name: 'Kavita Singh', mobile: '9300000005', email: 'kavita.hcm@curebharat.in',
+            password: hcmPwd, role: 'hcm', rank: 'HCM', memberId: 'CB-HCM-0005',
+            referrerId: hba3._id, state: 'Maharashtra', status: 'active', kycStatus: 'pending',
+            personalSalesCount: 6, personalSalesThisMonth: 1, teamSize: 2, joiningDate: new Date(),
+        });
+        await Wallet_1.default.create({ user: hcm5._id });
+        console.log('✅ 5 HCMs created');
+        // ============================================================
+        // HCCs under HCM 1 (Priya Desai)
+        // ============================================================
+        const hccPwd = await bcryptjs_1.default.hash('HCC@123456', 12);
+        const hccData = [
+            { name: 'Amit Kumar', mobile: '9400000001', email: 'amit.hcc@curebharat.in', memberId: 'CB-HCC-0001', referrerId: hcm1._id, status: 'active', kycStatus: 'approved', sales: 6 },
+            { name: 'Neha Sharma', mobile: '9400000002', email: 'neha.hcc@curebharat.in', memberId: 'CB-HCC-0002', referrerId: hcm1._id, status: 'active', kycStatus: 'pending', sales: 4 },
+            { name: 'Kiran Patil', mobile: '9400000003', email: 'kiran.hcc@curebharat.in', memberId: 'CB-HCC-0003', referrerId: hcm1._id, status: 'active', kycStatus: 'approved', sales: 5 },
+            // HCCs under HCM 2 (Vikram Shah)
+            { name: 'Ravi Joshi', mobile: '9400000004', email: 'ravi.hcc@curebharat.in', memberId: 'CB-HCC-0004', referrerId: hcm2._id, status: 'inactive', kycStatus: 'approved', sales: 1 },
+            { name: 'Pooja Kulkarni', mobile: '9400000005', email: 'pooja.hcc@curebharat.in', memberId: 'CB-HCC-0005', referrerId: hcm2._id, status: 'active', kycStatus: 'approved', sales: 3 },
+            { name: 'Suresh Mehta', mobile: '9400000006', email: 'suresh.hcc@curebharat.in', memberId: 'CB-HCC-0006', referrerId: hcm2._id, status: 'active', kycStatus: 'approved', sales: 7 },
+            { name: 'Anita Das', mobile: '9400000007', email: 'anita.hcc@curebharat.in', memberId: 'CB-HCC-0007', referrerId: hcm2._id, status: 'active', kycStatus: 'pending', sales: 2 },
+            // HCCs under HCM 3 (Sunita Rao)
+            { name: 'Rajiv Gupta', mobile: '9400000008', email: 'rajiv.hcc@curebharat.in', memberId: 'CB-HCC-0008', referrerId: hcm3._id, status: 'active', kycStatus: 'approved', sales: 5 },
+            { name: 'Nisha Verma', mobile: '9400000009', email: 'nisha.hcc@curebharat.in', memberId: 'CB-HCC-0009', referrerId: hcm3._id, status: 'active', kycStatus: 'approved', sales: 4 },
+            // HCCs under HCM 4 (Deepak Nair)
+            { name: 'Mohan Tiwari', mobile: '9400000010', email: 'mohan.hcc@curebharat.in', memberId: 'CB-HCC-0010', referrerId: hcm4._id, status: 'active', kycStatus: 'approved', sales: 2 },
+            { name: 'Lata Iyer', mobile: '9400000011', email: 'lata.hcc@curebharat.in', memberId: 'CB-HCC-0011', referrerId: hcm4._id, status: 'inactive', kycStatus: 'pending', sales: 0 },
+            // HCCs under HCM 5 (Kavita Singh)
+            { name: 'Sohail Khan', mobile: '9400000012', email: 'sohail.hcc@curebharat.in', memberId: 'CB-HCC-0012', referrerId: hcm5._id, status: 'active', kycStatus: 'approved', sales: 3 },
+            { name: 'Rekha Pillai', mobile: '9400000013', email: 'rekha.hcc@curebharat.in', memberId: 'CB-HCC-0013', referrerId: hcm5._id, status: 'active', kycStatus: 'pending', sales: 2 },
+        ];
+        for (const h of hccData) {
+            const u = await User_1.default.create({
+                name: h.name, mobile: h.mobile, email: h.email,
+                password: hccPwd, role: 'hcc', rank: 'HCC', memberId: h.memberId,
+                referrerId: h.referrerId, state: 'Maharashtra', status: h.status, kycStatus: h.kycStatus,
+                personalSalesCount: h.sales, personalSalesThisMonth: Math.floor(h.sales / 2),
+                teamSize: 0, joiningDate: new Date(),
+            });
+            await Wallet_1.default.create({ user: u._id });
         }
-        console.log('3 HCCs created');
-        // --- UPDATE teamSize counts ---
-        await User_1.default.findByIdAndUpdate(sh._id, { teamSize: 1 });
-        await User_1.default.findByIdAndUpdate(hba._id, { teamSize: 5 });
-        await User_1.default.findByIdAndUpdate(hcm1._id, { teamSize: 2 });
-        await User_1.default.findByIdAndUpdate(hcm2._id, { teamSize: 1 });
-        // --- GENERATE SAMPLE E-PINS ---
-        const superSurakshaPlan = plans.find((p) => p.name === 'Super Suraksha');
-        if (superSurakshaPlan) {
-            const epins = [];
-            for (let i = 1; i <= 20; i++) {
-                const code = `CB-MH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-                epins.push({
-                    pinCode: code,
-                    plan: superSurakshaPlan._id,
-                    value: superSurakshaPlan.price,
-                    generatedBy: admin._id,
-                    currentOwnerId: hba._id,
-                    status: 'unused'
-                });
-            }
-            await EPin_1.default.insertMany(epins);
-            console.log('20 E-Pins generated and assigned to HBA');
-        }
-        // --- PRINT SUMMARY ---
+        console.log(`✅ ${hccData.length} HCCs created`);
+        // --- SUMMARY ---
         console.log('\n✅ SEED COMPLETE');
+        console.log('================================');
+        console.log('HIERARCHY: Rajesh Patel (SH)');
+        console.log('  ├── Sanjay Mehta (HBA-0001)');
+        console.log('  │   ├── Priya Desai (HCM-0001) → Amit, Neha, Kiran (HCCs)');
+        console.log('  │   └── Vikram Shah (HCM-0002) → Ravi, Pooja, Suresh, Anita (HCCs)');
+        console.log('  ├── Meena Joshi (HBA-0002)');
+        console.log('  │   ├── Sunita Rao (HCM-0003) → Rajiv, Nisha (HCCs)');
+        console.log('  │   └── Deepak Nair (HCM-0004) → Mohan, Lata (HCCs)');
+        console.log('  └── Arvind Kumar (HBA-0003)');
+        console.log('      └── Kavita Singh (HCM-0005) → Sohail, Rekha (HCCs)');
         console.log('================================');
         console.log('LOGIN CREDENTIALS:');
         console.log('Admin  → 9000000000 | Admin@123');

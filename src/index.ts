@@ -15,6 +15,7 @@ import walletRoutes from './routes/wallet.routes';
 import epinRoutes from './routes/epin.routes';
 import planRoutes from './routes/plan.routes';
 import adminRoutes from './routes/admin.routes';
+import teamRoutes from './routes/team.routes';
 
 // Logic & Cron
 import { scheduleMaintenanceCrons } from './lib/payoutCycle';
@@ -112,6 +113,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/epins', epinRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/team', teamRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

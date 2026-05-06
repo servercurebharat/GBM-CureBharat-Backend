@@ -18,29 +18,33 @@ export const createSale = async (req: any, res: Response) => {
       return res.status(400).json({ success: false, message: 'Invalid or inactive plan' });
     }
 
-    // 3. E-Pin Validation (if provided)
+    // 3. Calculate Total Billing Amount (Price + GST)
+    const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
+    const totalAmount = plan.price + gstAmount;
+
+    // 4. E-Pin Validation (if provided)
     let epin = null;
     if (ePinCode) {
       epin = await EPin.findOne({ pinCode: ePinCode, status: 'unused' });
       if (!epin) {
         return res.status(400).json({ success: false, message: 'E-Pin invalid or already used' });
       }
-      if (epin.value < plan.price) {
-        return res.status(400).json({ success: false, message: 'E-Pin value insufficient for this plan' });
+      if (epin.value < totalAmount) {
+        return res.status(400).json({ success: false, message: 'E-Pin value insufficient for this plan (including GST)' });
       }
     }
 
-    // 4. Generate unique Policy ID
+    // 5. Generate unique Policy ID
     const policyId = `CB-POL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // 5. Create Sale Record
+    // 6. Create Sale Record
     const newSale = new Sale({
       policyId,
       hccId: req.user._id,
       plan: planId,
       customerName,
       customerMobile,
-      saleAmount: plan.price,
+      saleAmount: totalAmount,
       businessVolume: plan.businessVolume,
       cycleMonth: getCurrentCycleMonth(),
       status: 'active'

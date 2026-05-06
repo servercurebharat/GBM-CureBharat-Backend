@@ -26,11 +26,13 @@ const generateEPins = async (req, res) => {
             targetUserId = targetUser._id;
         }
         const pins = [];
+        const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
+        const totalValue = plan.price + gstAmount;
         for (let i = 0; i < quantity; i++) {
             const pinCode = `CB-PIN-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`;
             pins.push({
                 pinCode,
-                value: plan.price,
+                value: totalValue,
                 plan: planId,
                 generatedBy: req.user._id,
                 currentOwnerId: targetUserId,

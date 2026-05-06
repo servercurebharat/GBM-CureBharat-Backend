@@ -7,8 +7,8 @@ export interface IUser extends Document {
   password?: string;
   role: 'admin' | 'sh' | 'hba' | 'hcm' | 'hcc';
   rank: 'HCC' | 'HCM' | 'HBA' | 'SH' | 'ADMIN';
-  memberId: string; // Unique Member ID like CB-HCC-1001
-  referrer?: mongoose.Types.ObjectId; // Who recruited this person
+  memberId: string;
+  referrerId?: mongoose.Types.ObjectId;
   state?: string;
   kycStatus: 'pending' | 'approved' | 'rejected' | 'not_submitted';
   status: 'active' | 'inactive' | 'blocked';
@@ -16,6 +16,40 @@ export interface IUser extends Document {
   personalSalesThisMonth: number;
   teamSize: number;
   lastSaleDate?: Date;
+  
+  // New Profile Fields
+  gender?: 'male' | 'female' | 'other';
+  dob?: Date;
+  profileImage?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
+  bankDetails?: {
+    accountHolderName?: string;
+    accountNumber?: string;
+    bankName?: string;
+    ifscCode?: string;
+    branchName?: string;
+  };
+  nomineeDetails?: {
+    name?: string;
+    relation?: string;
+    mobile?: string;
+  };
+  kycDocuments?: {
+    aadhaarNumber?: string;
+    panNumber?: string;
+    aadhaarFront?: string;
+    aadhaarBack?: string;
+    panCard?: string;
+    bankProof?: string;
+    selfie?: string;
+  };
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,7 +63,7 @@ const UserSchema: Schema = new Schema(
     role: { type: String, enum: ['admin', 'sh', 'hba', 'hcm', 'hcc'], default: 'hcc' },
     rank: { type: String, enum: ['HCC', 'HCM', 'HBA', 'SH', 'ADMIN'], default: 'HCC' },
     memberId: { type: String, unique: true, required: true },
-    referrer: { type: Schema.Types.ObjectId, ref: 'User' },
+    referrerId: { type: Schema.Types.ObjectId, ref: 'User' },
     state: { type: String },
     kycStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'not_submitted'], default: 'not_submitted' },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
@@ -37,6 +71,39 @@ const UserSchema: Schema = new Schema(
     personalSalesThisMonth: { type: Number, default: 0 },
     teamSize: { type: Number, default: 0 },
     lastSaleDate: { type: Date },
+
+    // New Profile Fields
+    gender: { type: String, enum: ['male', 'female', 'other'] },
+    dob: { type: Date },
+    profileImage: { type: String },
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: { type: String, default: 'India' }
+    },
+    bankDetails: {
+      accountHolderName: String,
+      accountNumber: String,
+      bankName: String,
+      ifscCode: String,
+      branchName: String
+    },
+    nomineeDetails: {
+      name: String,
+      relation: String,
+      mobile: String
+    },
+    kycDocuments: {
+      aadhaarNumber: String,
+      panNumber: String,
+      aadhaarFront: String,
+      aadhaarBack: String,
+      panCard: String,
+      bankProof: String,
+      selfie: String
+    }
   },
   { timestamps: true }
 );

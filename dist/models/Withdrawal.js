@@ -34,14 +34,26 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const planSchema = new mongoose_1.Schema({
-    name: { type: String, required: true },
-    category: { type: String, enum: ['onboarding', 'service'], default: 'service' },
-    price: { type: Number, required: true },
-    businessVolume: { type: Number, required: true },
-    isCommissionable: { type: Boolean, default: true },
-    gstPercent: { type: Number, default: 18 },
-    description: { type: String },
-    isActive: { type: Boolean, default: true }
+const withdrawalSchema = new mongoose_1.Schema({
+    requestId: { type: String, required: true, unique: true },
+    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    grossAmount: { type: Number, required: true },
+    tdsAmount: { type: Number, required: true },
+    adminFee: { type: Number, default: 0 },
+    netAmount: { type: Number, required: true },
+    status: {
+        type: String,
+        enum: ['pending', 'processing', 'success', 'failed', 'rejected'],
+        default: 'pending'
+    },
+    paymentDetails: {
+        transactionId: { type: String },
+        paidAt: { type: Date },
+        method: { type: String },
+        remarks: { type: String }
+    },
+    requestedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
-exports.default = mongoose_1.default.models.Plan || mongoose_1.default.model('Plan', planSchema);
+withdrawalSchema.index({ user: 1 });
+withdrawalSchema.index({ status: 1 });
+exports.default = mongoose_1.default.models.Withdrawal || mongoose_1.default.model('Withdrawal', withdrawalSchema);

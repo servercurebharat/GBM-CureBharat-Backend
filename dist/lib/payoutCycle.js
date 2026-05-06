@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runPayoutCycle = runPayoutCycle;
-exports.schedulePayoutCycle = schedulePayoutCycle;
+exports.scheduleMaintenanceCrons = scheduleMaintenanceCrons;
 const node_cron_1 = __importDefault(require("node-cron"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
 const User_1 = __importDefault(require("../models/User"));
@@ -66,10 +66,19 @@ async function runPayoutCycle(cycleMonth) {
         console.error('[PayoutCycle] Error during payout cycle:', error);
     }
 }
+const rankEngine_1 = require("./rankEngine");
 /**
- * Schedule cron: 5th of every month at 09:00 AM
+ * Schedule crons for MLM maintenance
  */
-function schedulePayoutCycle() {
+function scheduleMaintenanceCrons() {
+    // 1. Activity Audit: 1st of every month at 00:01 AM
+    node_cron_1.default.schedule('1 0 1 * *', async () => {
+        const now = new Date();
+        const cycleMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        console.log(`[Cron] Triggering Monthly Activity Audit for ${cycleMonth}`);
+        await (0, rankEngine_1.runMonthlyActivityAudit)(cycleMonth);
+    });
+    // 2. Payout settlement: 5th of every month at 09:00 AM
     node_cron_1.default.schedule('0 9 5 * *', async () => {
         const now = new Date();
         // Get last month in YYYY-MM format

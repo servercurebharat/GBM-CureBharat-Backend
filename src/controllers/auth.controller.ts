@@ -158,9 +158,10 @@ export const register = async (req: any, res: Response) => {
     // Define Allowed Target Roles
     const permissions: Record<string, string[]> = {
       'admin': ['sh', 'hba', 'hcm', 'hcc'],
-      'sh': ['hba', 'hcc'],
+      'sh': ['hba', 'hcm', 'hcc'],
       'hba': ['hcm', 'hcc'],
-      'hcm': ['hcm', 'hcc'],
+      'hcm': ['hcc'],
+      'hcc': ['hcc'],
       'public': ['hcc']
     };
 
