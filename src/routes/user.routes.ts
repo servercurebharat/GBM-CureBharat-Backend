@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { getDownline, updateKYC, getAllUsers, getUserById } from '../controllers/user.controller';
+import { getDownline, updateKYC, getAllUsers, getUserById, getUserStats } from '../controllers/user.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
 import { upload } from '../config/cloudinary';
 
 const router = Router();
 
+router.get('/stats', authMiddleware, checkRole(['admin', 'sh']), getUserStats);
 router.get('/', authMiddleware, checkRole(['admin', 'sh']), getAllUsers);
 router.get('/:id', authMiddleware, getUserById);
 router.get('/:id/downline', authMiddleware, getDownline);

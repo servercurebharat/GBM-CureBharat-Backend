@@ -58,6 +58,41 @@ export const getAdminTree = async (req: any, res: Response) => {
   }
 };
 
+export const getUserStats = async (req: any, res: Response) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const activeUsers = await User.countDocuments({ status: 'active' });
+    const inactiveUsers = await User.countDocuments({ status: 'inactive' });
+    const pendingKycUsers = await User.countDocuments({ kycStatus: 'pending' });
+
+    const roles = await User.aggregate([
+      { $group: { _id: '$role', count: { $sum: 1 } } }
+    ]);
+
+    const roleDistribution = roles.reduce((acc: any, curr: any) => {
+      if (curr._id) {
+        acc[curr._id] = curr.count;
+      }
+      return acc;
+    }, { hcc: 0, hcm: 0, hba: 0, sh: 0, admin: 0 });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalUsers,
+        activeUsers,
+        inactiveUsers,
+        pendingKycUsers,
+        roleDistribution
+      }
+    });
+  } catch (error: any) {
+    console.error('[User] getUserStats Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+
 export const updateKYC = async (req: any, res: Response) => {
   try {
     const { id } = req.params;
@@ -134,7 +169,7 @@ export const updateKYC = async (req: any, res: Response) => {
 
 export const getAllUsers = async (req: any, res: Response) => {
   try {
-    const { page = 1, limit = 20, search } = req.query;
+    const { page = 1, limit = 20, search, role } = req.query;
 
     let query: any = {};
     if (search) {
@@ -143,6 +178,10 @@ export const getAllUsers = async (req: any, res: Response) => {
         { mobile: { $regex: search, $options: 'i' } },
         { memberId: { $regex: search, $options: 'i' } }
       ];
+    }
+    
+    if (role) {
+      query.role = role;
     }
 
     const users = await User.find(query)
