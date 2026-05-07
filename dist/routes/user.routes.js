@@ -6,6 +6,7 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const cloudinary_1 = require("../config/cloudinary");
 const router = (0, express_1.Router)();
+router.get('/stats', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin', 'sh']), user_controller_1.getUserStats);
 router.get('/', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin', 'sh']), user_controller_1.getAllUsers);
 router.get('/:id', auth_middleware_1.authMiddleware, user_controller_1.getUserById);
 router.get('/:id/downline', auth_middleware_1.authMiddleware, user_controller_1.getDownline);

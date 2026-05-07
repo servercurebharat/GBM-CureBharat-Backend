@@ -96,6 +96,17 @@ const getMySales = async (req, res) => {
                 { hbaId: _id }
             ];
         }
+        if (req.query.search) {
+            const searchRegex = new RegExp(req.query.search, 'i');
+            query.$or = [
+                { customerName: searchRegex },
+                { customerMobile: searchRegex },
+                { policyId: searchRegex }
+            ];
+        }
+        if (req.query.status && req.query.status !== 'all') {
+            query.status = req.query.status;
+        }
         const sales = await Sale_1.default.find(query)
             .populate('plan', 'name price')
             .populate('hccId', 'name memberId')

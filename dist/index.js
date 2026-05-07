@@ -18,6 +18,7 @@ const epin_routes_1 = __importDefault(require("./routes/epin.routes"));
 const plan_routes_1 = __importDefault(require("./routes/plan.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const team_routes_1 = __importDefault(require("./routes/team.routes"));
+const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
 // Logic & Cron
 const payoutCycle_1 = require("./lib/payoutCycle");
 // Critical: Validate environment before proceeding
@@ -105,6 +106,7 @@ app.use('/api/epins', epin_routes_1.default);
 app.use('/api/plans', plan_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
 app.use('/api/team', team_routes_1.default);
+app.use('/api/dashboard', dashboard_routes_1.default);
 // Health Check
 app.get('/api/health', (req, res) => {
     res.json({

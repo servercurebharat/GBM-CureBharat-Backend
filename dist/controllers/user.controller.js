@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserById = exports.getAllUsers = exports.updateKYC = exports.getAdminTree = exports.getDownline = void 0;
+exports.getUserById = exports.getAllUsers = exports.updateKYC = exports.getUserStats = exports.getAdminTree = exports.getDownline = void 0;
 const User_1 = __importDefault(require("../models/User"));
 const getDownline = async (req, res) => {
     try {
@@ -58,6 +58,38 @@ const getAdminTree = async (req, res) => {
     }
 };
 exports.getAdminTree = getAdminTree;
+const getUserStats = async (req, res) => {
+    try {
+        const totalUsers = await User_1.default.countDocuments();
+        const activeUsers = await User_1.default.countDocuments({ status: 'active' });
+        const inactiveUsers = await User_1.default.countDocuments({ status: 'inactive' });
+        const pendingKycUsers = await User_1.default.countDocuments({ kycStatus: 'pending' });
+        const roles = await User_1.default.aggregate([
+            { $group: { _id: '$role', count: { $sum: 1 } } }
+        ]);
+        const roleDistribution = roles.reduce((acc, curr) => {
+            if (curr._id) {
+                acc[curr._id] = curr.count;
+            }
+            return acc;
+        }, { hcc: 0, hcm: 0, hba: 0, sh: 0, admin: 0 });
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalUsers,
+                activeUsers,
+                inactiveUsers,
+                pendingKycUsers,
+                roleDistribution
+            }
+        });
+    }
+    catch (error) {
+        console.error('[User] getUserStats Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+exports.getUserStats = getUserStats;
 const updateKYC = async (req, res) => {
     try {
         const { id } = req.params;
@@ -134,7 +166,7 @@ const updateKYC = async (req, res) => {
 exports.updateKYC = updateKYC;
 const getAllUsers = async (req, res) => {
     try {
-        const { page = 1, limit = 20, search } = req.query;
+        const { page = 1, limit = 20, search, role } = req.query;
         let query = {};
         if (search) {
             query.$or = [
@@ -142,6 +174,9 @@ const getAllUsers = async (req, res) => {
                 { mobile: { $regex: search, $options: 'i' } },
                 { memberId: { $regex: search, $options: 'i' } }
             ];
+        }
+        if (role) {
+            query.role = role;
         }
         const users = await User_1.default.find(query)
             .select('-password')
