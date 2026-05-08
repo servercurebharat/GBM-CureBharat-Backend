@@ -4,9 +4,7 @@ import User from '../models/User';
 import Wallet from '../models/Wallet';
 import EPin from '../models/EPin';
 
-// In-memory OTP store (replace with Redis in production)
-const otpStore: Map<string, { otp: string; expiresAt: number }> = new Map();
-
+// Predefined test accounts: mobile -> password
 const PREDEFINED_ACCOUNTS: Record<string, string> = {
   '9000000000': 'Admin@123',
   '9100000001': 'SH@123456',
@@ -15,102 +13,51 @@ const PREDEFINED_ACCOUNTS: Record<string, string> = {
   '9400000001': 'HCC@123456',
 };
 
-export const sendOTP = async (req: Request, res: Response) => {
+// ─── LOGIN (Password-only, no OTP) ───────────────────────────────────────────
+export const login = async (req: Request, res: Response) => {
   try {
-    const { mobile } = req.body;
+    const { mobile, password } = req.body;
 
-    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+    if (!mobile || !password) {
+      return res.status(400).json({ success: false, message: 'Mobile and password are required' });
+    }
+
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
       return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
     }
 
-    // Check for predefined test accounts
-    if (PREDEFINED_ACCOUNTS[mobile]) {
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Test Account Detected: Use your predefined password',
-        otp: '******' 
-      });
-    }
-
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Store in otpStore with 5 min expiry
-    otpStore.set(mobile, { otp, expiresAt: Date.now() + 300000 });
-
-    console.log(`[AUTH] OTP for ${mobile}: ${otp}`);
-
-    // In development, return OTP (remove in production)
-    return res.status(200).json({ 
-      success: true, 
-      message: 'OTP sent successfully', 
-      otp: process.env.NODE_ENV === 'development' ? otp : undefined 
-    });
-  } catch (error: any) {
-    console.error('[AUTH] sendOTP Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
-  }
-};
-
-export const verifyOTP = async (req: Request, res: Response) => {
-  try {
-    const { mobile, otp } = req.body;
-    
-    console.log(`[DEBUG] Attempting Login: Mobile="${mobile}", ReceivedValue="${otp}"`);
+    console.log(`[AUTH] Login attempt: ${mobile}`);
 
     let isVerified = false;
-    let user: any = await User.findOne({ mobile }).lean();
+    const user: any = await User.findOne({ mobile }).lean();
 
-    // 1. Check for predefined test accounts first
-    const expectedPassword = PREDEFINED_ACCOUNTS[mobile];
-    if (expectedPassword) {
-      console.log(`[DEBUG] Test account detected. Expected Password: "${expectedPassword}"`);
-      if (expectedPassword === otp) {
-        console.log(`[DEBUG] Password MATCH!`);
-        isVerified = true;
-      }
-    } 
-    
-    // 2. Check user's set password in DB (for regular members)
-    if (!isVerified && user && user.password && user.password === otp) {
-      console.log(`[DEBUG] Database Password MATCH for ${mobile}`);
+    // 1. Check predefined test accounts
+    const predefinedPassword = PREDEFINED_ACCOUNTS[mobile];
+    if (predefinedPassword && predefinedPassword === password) {
       isVerified = true;
+      console.log(`[AUTH] Predefined account matched for ${mobile}`);
     }
 
-    // 3. Check the normal OTP store
-    if (!isVerified) {
-      const stored = otpStore.get(mobile);
-      if (stored && stored.expiresAt > Date.now() && stored.otp === otp) {
-        console.log(`[DEBUG] Valid OTP found in store for ${mobile}`);
-        isVerified = true;
-        otpStore.delete(mobile);
-      }
-    }
-
-    // 4. Universal Test OTP Bypass (Development Only)
-    if (!isVerified && process.env.NODE_ENV !== 'production' && otp === '123456') {
-      console.log(`[DEBUG] Universal Test OTP Bypass (123456) used for ${mobile}`);
+    // 2. Check DB password (plain text for now — upgrade to bcrypt later)
+    if (!isVerified && user && user.password && user.password === password) {
       isVerified = true;
+      console.log(`[AUTH] DB password matched for ${mobile}`);
     }
 
     if (!isVerified) {
-      console.log(`[DEBUG] Login DENIED.`);
-      return res.status(400).json({ 
-        success: false, 
-        message: expectedPassword || (user && user.password) ? 'Invalid Password' : 'Invalid or expired OTP' 
-      });
+      console.log(`[AUTH] Login DENIED for ${mobile}`);
+      return res.status(401).json({ success: false, message: 'Invalid mobile number or password' });
     }
 
     if (!user) {
-      console.log(`[DEBUG] User verified but NOT found in DB. Returning registered:false`);
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Mobile verified, please register', 
-        registered: false 
-      });
+      return res.status(404).json({ success: false, message: 'Account not found. Please register first.' });
     }
 
-    console.log(`[DEBUG] Login APPROVED for ${user.name} (${user.role})`);
+    if (user.status === 'blocked') {
+      return res.status(403).json({ success: false, message: 'Your account has been blocked. Contact support.' });
+    }
+
+    console.log(`[AUTH] Login APPROVED: ${user.name} (${user.role})`);
 
     // Generate JWT
     const token = jwt.sign(
@@ -123,26 +70,35 @@ export const verifyOTP = async (req: Request, res: Response) => {
     res.cookie('auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    return res.status(200).json({ 
-      success: true, 
-      registered: true,
-      user: { 
-        id: user._id,
-        name: user.name, 
-        role: user.role, 
-        rank: user.rank, 
-        memberId: user.memberId 
+    return res.status(200).json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        mobile: user.mobile,
+        role: user.role,
+        rank: user.rank,
+        memberId: user.memberId,
+        status: user.status,
+        kycStatus: user.kycStatus,
       }
     });
   } catch (error: any) {
-    console.error('[AUTH] verifyOTP Error:', error);
+    console.error('[AUTH] login Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+// ─── Kept for backward compat — now just delegates to login ─────────────────
+export const sendOTP = async (req: Request, res: Response) => {
+  return res.status(410).json({ success: false, message: 'OTP system is deprecated. Use /auth/login instead.' });
+};
+
+export const verifyOTP = login; // alias
 
 export const register = async (req: any, res: Response) => {
   try {
@@ -260,7 +216,7 @@ export const getMe = async (req: any, res: Response) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    return res.status(200).json({ success: true, user });
+    return res.status(200).json({ success: true, data: user });
   } catch (error: any) {
     console.error('[AUTH] getMe Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
