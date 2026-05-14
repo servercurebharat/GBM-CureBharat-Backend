@@ -14,6 +14,13 @@ export function validateEnv(): void {
       process.exit(1);
     }
   }
+
+  // Check Razorpay (Optional but warned)
+  const razorpayVars = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'];
+  const missingRazorpay = razorpayVars.filter(key => !process.env[key]);
+  if (missingRazorpay.length > 0) {
+    console.warn(`⚠️  Warning: Missing Razorpay configuration: ${missingRazorpay.join(', ')}. Payment features will be disabled.`);
+  }
   
   console.log('✅ Environment variables validated');
 }

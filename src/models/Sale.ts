@@ -59,6 +59,7 @@ const saleSchema = new Schema<ISale>({
 
 saleSchema.index({ sellerId: 1 });
 saleSchema.index({ cycleMonth: 1 });
-saleSchema.index({ razorpayPaymentId: 1 }, { unique: true });
+// Redundant index removed as it is already defined in the field definition above
+// saleSchema.index({ razorpayPaymentId: 1 }, { unique: true });
 
 export default mongoose.models.Sale || mongoose.model<ISale>('Sale', saleSchema);
