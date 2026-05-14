@@ -12,11 +12,12 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import saleRoutes from './routes/sale.routes';
 import walletRoutes from './routes/wallet.routes';
-import epinRoutes from './routes/epin.routes';
+// E-Pin routes removed
 import planRoutes from './routes/plan.routes';
 import adminRoutes from './routes/admin.routes';
 import teamRoutes from './routes/team.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import publicRoutes from './routes/public.routes';
 
 // Logic & Cron
 import { scheduleMaintenanceCrons } from './lib/payoutCycle';
@@ -111,11 +112,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/wallet', walletRoutes);
-app.use('/api/epins', epinRoutes);
+  // E-Pin routes removed
 app.use('/api/plans', planRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/public', publicRoutes); // No auth — public Razorpay payment routes
 
 // Health Check
 app.get('/api/health', (req, res) => {

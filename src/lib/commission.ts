@@ -3,21 +3,26 @@ import User, { IUser } from '../models/User';
 import Wallet from '../models/Wallet';
 import { checkAndPromote } from './rankEngine';
 import { Types } from 'mongoose';
+import Config from '../models/Config';
+
+async function getCommissionRate(key: string, defaultValue: number): Promise<number> {
+  try {
+    const config = await Config.findOne({ key });
+    return config ? parseFloat(config.value) / 100 : defaultValue / 100;
+  } catch (err) {
+    return defaultValue / 100;
+  }
+}
 
 /**
  * SEQUENTIAL waterfall commission processor.
- * Never run in parallel — each level depends on previous.
- * 
- * Chain: HCC (40%) → HCM (40% of HCC) → HBA (40% of HCM) → SH (2% of sale)
+ * Chain: Seller (40% BV) → upline HCM (40% of Seller) → upline HBA (40% of HCM) → upline SH (2% BV)
  */
 export async function processCommission(saleId: string): Promise<void> {
   console.log(`[Commission] Processing sale: ${saleId}`);
 
   const sale = await Sale.findById(saleId).populate('plan');
-  if (!sale) {
-    console.error(`[Commission] Sale ${saleId} not found`);
-    return;
-  }
+  if (!sale) { console.error(`[Commission] Sale ${saleId} not found`); return; }
 
   if (sale.commissionProcessed) {
     console.log(`[Commission] Sale ${saleId} already processed. Skipping.`);
@@ -26,33 +31,28 @@ export async function processCommission(saleId: string): Promise<void> {
 
   const plan: any = sale.plan;
   if (!plan || !plan.isCommissionable) {
-    console.log(`[Commission] Plan for sale ${saleId} is not commissionable. Marking as processed.`);
     sale.commissionProcessed = true;
     await sale.save();
     return;
   }
 
-  // Use businessVolume as the base for commission calculation (₹ excluding GST)
-  const baseAmount = sale.businessVolume;
+  const baseAmount = sale.businessVolume; // commission base (paise, excl GST)
   const cycleMonth = sale.cycleMonth;
 
-  // 1. DIRECT INCOME (40% of baseAmount)
-  // This goes to the actual seller, regardless of their role (HCC/HCM/HBA/SH)
-  const seller = await User.findById(sale.hccId);
-  if (!seller) {
-    console.error(`[Commission] Seller not found for sale ${saleId}`);
-    return;
-  }
+  // ── 1. DIRECT INCOME (HCC) ──────────────────────────────────────────────
+  const hccRate = await getCommissionRate('hcc_direct_percent', 40);
+  const seller = await User.findById(sale.sellerId);
+  if (!seller) { console.error(`[Commission] Seller not found for sale ${saleId}`); return; }
 
-  const directIncome = Math.round(baseAmount * 0.40);
+  const directIncome = Math.round(baseAmount * hccRate);
   await addToWallet({
     userId: seller._id as Types.ObjectId,
     amount: directIncome,
     type: 'direct',
-    description: `Direct sale commission - Policy ${sale.policyId}`,
+    description: `Direct commission - Policy ${sale.policyId}`,
     sourceUserId: seller._id as Types.ObjectId,
     status: 'provisional',
-    cycleMonth
+    cycleMonth,
   });
 
   seller.personalSalesCount += 1;
@@ -60,111 +60,102 @@ export async function processCommission(saleId: string): Promise<void> {
   seller.lastActiveMonth = cycleMonth;
   await seller.save();
 
-  // 2. HCM OVERRIDE (40% of Direct Income)
-  // Only calculate if the seller is an HCC
-  let hccDirectIncome = directIncome;
+  // ── 2. HCM OVERRIDE ─────────────────────────────────────────────────────
+  const hcmRate = await getCommissionRate('hcm_override_percent', 40);
   let hcm: IUser | null = null;
-  
-  if (seller.role === 'hcc' && seller.referrerId) {
-    hcm = await findNextActiveUpline(seller.referrerId as Types.ObjectId, 'HCM');
+  if (seller.referrerId) {
+    hcm = await findNextExactUpline(seller.referrerId as Types.ObjectId, 'HCM');
   }
 
   let hcmIncome = 0;
   if (hcm) {
     sale.hcmId = hcm._id as Types.ObjectId;
-    hcmIncome = Math.round(hccDirectIncome * 0.40);
+    hcmIncome = Math.round(directIncome * hcmRate);
     await addToWallet({
       userId: hcm._id as Types.ObjectId,
       amount: hcmIncome,
       type: 'override',
-      description: `Override from HCC ${seller.memberId} - Policy ${sale.policyId}`,
+      description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
       sourceUserId: seller._id as Types.ObjectId,
       status: 'provisional',
-      cycleMonth
+      cycleMonth,
     });
   }
- else {
-    console.log(`[Commission] No active HCM found in upline for HCC ${seller.memberId}`);
-  }
 
-  // 3. HBA OVERRIDE (40% of HCM Potential Income)
+  // ── 3. HBA OVERRIDE ─────────────────────────────────────────────────────
+  const hbaRate = await getCommissionRate('hba_override_percent', 40);
   let hba: IUser | null = null;
-  const potentialHcmIncome = Math.round(directIncome * 0.40);
-
-  if (seller.role === 'hba') {
-    // If seller is HBA, no HCM override exists, and they got the 40% direct.
-    // SH will get the 2% later.
-  } else {
-    // Look for HBA starting from the best possible point
-    const searchStartId = hcm ? hcm.referrerId : seller.referrerId;
-    if (searchStartId) {
-      hba = await findNextActiveUpline(searchStartId as Types.ObjectId, 'HBA');
-    }
+  const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : seller.referrerId;
+  
+  if (searchStartForHba) {
+    hba = await findNextExactUpline(searchStartForHba as Types.ObjectId, 'HBA');
   }
 
   let hbaIncome = 0;
   if (hba) {
     sale.hbaId = hba._id as Types.ObjectId;
-    // HBA always gets 40% of a potential HCM's income (Pass-up logic)
-    hbaIncome = Math.round(potentialHcmIncome * 0.40);
-    
+    const potentialHcmIncome = Math.round(directIncome * hcmRate);
+    hbaIncome = Math.round(potentialHcmIncome * hbaRate);
     await addToWallet({
       userId: hba._id as Types.ObjectId,
       amount: hbaIncome,
       type: 'override',
-      description: `Override from ${hcm ? 'HCM ' + hcm.memberId : 'downline'} - Policy ${sale.policyId}`,
+      description: `HBA override from ${hcm ? hcm.memberId : seller.memberId} - Policy ${sale.policyId}`,
       sourceUserId: seller._id as Types.ObjectId,
       status: 'provisional',
-      cycleMonth
+      cycleMonth,
     });
   }
 
-  // 4. SH LEADERSHIP BONUS (2% of baseAmount)
+  // ── 4. SH LEADERSHIP BONUS ──────────────────────────────────────────────
+  const shRate = await getCommissionRate('sh_leadership_percent', 2);
+  const searchStartForSh = hba 
+    ? hba.referrerId 
+    : (hcm ? hcm.referrerId : seller.referrerId);
+
   let sh: IUser | null = null;
-  const searchStartIdForSh = hba ? hba.referrerId : (hcm ? hcm.referrerId : seller.referrerId);
-  
-  if (searchStartIdForSh) {
-    sh = await findNextActiveUpline(searchStartIdForSh as Types.ObjectId, 'SH');
+  if (searchStartForSh) {
+    sh = await findNextExactUpline(searchStartForSh as Types.ObjectId, 'SH');
   }
 
   if (sh) {
     sale.shId = sh._id as Types.ObjectId;
-    const shIncome = Math.round(baseAmount * 0.02);
+    const shIncome = Math.round(baseAmount * shRate);
     await addToWallet({
       userId: sh._id as Types.ObjectId,
       amount: shIncome,
       type: 'leadership',
-      description: `2% leadership bonus - Policy ${sale.policyId}`,
+      description: `SH leadership bonus - Policy ${sale.policyId}`,
       sourceUserId: seller._id as Types.ObjectId,
       status: 'provisional',
-      cycleMonth
+      cycleMonth,
     });
   }
 
-  // FINALIZE
+  // ── FINALIZE ──────────────────────────────────────────────────────────────
   sale.commissionProcessed = true;
   await sale.save();
 
-  // TRIGGER RANK CHECK
-  await checkAndPromote(seller._id.toString()).catch(err => console.error(`[RankEngine] Error:`, err));
+  // Trigger rank promotion check for seller
+  await checkAndPromote(seller._id.toString()).catch((err) =>
+    console.error(`[RankEngine] Error:`, err)
+  );
 
-  console.log(`[Commission] Completed for sale ${sale.policyId}`);
+  console.log(`[Commission] ✅ Completed for ${sale.policyId} | Direct: ₹${directIncome/100} | HCM: ₹${hcmIncome/100} | HBA: ₹${hbaIncome/100}`);
 }
 
-// Helper: addToWallet
+// ── Helper: addToWallet ───────────────────────────────────────────────────────
 async function addToWallet(entry: {
-  userId: Types.ObjectId,
-  amount: number,
-  type: 'direct' | 'override' | 'leadership' | 'withdrawal' | 'tds_deduction',
-  description: string,
-  sourceUserId: Types.ObjectId,
-  status: 'provisional' | 'final',
-  cycleMonth: string
+  userId: Types.ObjectId;
+  amount: number;
+  type: 'direct' | 'override' | 'leadership' | 'withdrawal' | 'tds_deduction';
+  description: string;
+  sourceUserId: Types.ObjectId;
+  status: 'provisional' | 'final';
+  cycleMonth: string;
 }): Promise<void> {
   let wallet = await Wallet.findOne({ user: entry.userId });
-  if (!wallet) {
-    wallet = new Wallet({ user: entry.userId });
-  }
+  if (!wallet) wallet = new Wallet({ user: entry.userId });
 
   wallet.ledger.push({
     amount: entry.amount,
@@ -172,7 +163,7 @@ async function addToWallet(entry: {
     description: entry.description,
     cycleMonth: entry.cycleMonth,
     status: entry.status,
-    date: new Date()
+    date: new Date(),
   });
 
   if (entry.status === 'provisional') {
@@ -180,29 +171,33 @@ async function addToWallet(entry: {
   } else {
     wallet.finalBalance += entry.amount;
   }
-
   wallet.totalEarned += entry.amount;
   await wallet.save();
 }
 
-// Helper: findNextActiveUpline
-async function findNextActiveUpline(
-  userId: Types.ObjectId, 
+// ── Helper: findNextExactUpline ───────────────────────────────────────────────
+// Traverses upline and finds the first user with EXACTLY the required rank.
+// Fixes the bug where SH was accidentally matching HBA searches.
+async function findNextExactUpline(
+  userId: Types.ObjectId,
   requiredRank: string
 ): Promise<IUser | null> {
   let currentId: Types.ObjectId | undefined = userId;
   let depth = 0;
 
-  while (currentId && depth < 10) {
+  console.log(`[Commission] Searching for ${requiredRank} starting from ${userId}`);
+
+  while (currentId && depth < 20) {
     const user = await User.findById(currentId);
     if (!user) break;
 
-    // Rank weight check: requiredRank or HIGHER qualifies
-    const rankOrder = ['HCC', 'HCM', 'HBA', 'SH', 'ADMIN'];
-    const userRankIndex = rankOrder.indexOf(user.rank);
-    const requiredRankIndex = rankOrder.indexOf(requiredRank);
+    const currentRank = (user.rank || '').toUpperCase();
+    const currentRole = (user.role || '').toUpperCase();
 
-    if (userRankIndex >= requiredRankIndex && user.status === 'active') {
+    console.log(`[Commission] Step ${depth}: User ${user.memberId} has Role: ${currentRole}, Rank: ${currentRank}`);
+
+    if ((currentRank === requiredRank || currentRole === requiredRank) && user.status === 'active') {
+      console.log(`[Commission] Found ${requiredRank}: ${user.memberId}`);
       return user;
     }
 
@@ -210,6 +205,7 @@ async function findNextActiveUpline(
     depth++;
   }
 
+  console.log(`[Commission] No ${requiredRank} found in upline`);
   return null;
 }
 

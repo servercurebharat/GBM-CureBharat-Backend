@@ -1,11 +1,14 @@
 import { Router } from 'express';
-import { login, sendOTP, verifyOTP, register, getMe } from '../controllers/auth.controller';
+import { login, sendOTP, verifyOTP, register, getMe, logout } from '../controllers/auth.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
 
 // Primary login endpoint (password-only)
 router.post('/login', login);
+
+// Logout — clears the httpOnly auth_token cookie server-side
+router.post('/logout', logout);
 
 // Legacy OTP endpoints (now deprecated — return 410)
 router.post('/send-otp', sendOTP);

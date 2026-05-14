@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import Wallet from '../models/Wallet';
-import EPin from '../models/EPin';
+// EPin import removed
 
 // Predefined test accounts: mobile -> password
 const PREDEFINED_ACCOUNTS: Record<string, string> = {
@@ -11,6 +11,18 @@ const PREDEFINED_ACCOUNTS: Record<string, string> = {
   '9200000001': 'HBA@123456',
   '9300000001': 'HCM@123456',
   '9400000001': 'HCC@123456',
+};
+
+// ─── LOGOUT ──────────────────────────────────────────────────────────────────
+// Clears the httpOnly auth_token — JS cannot do this, only server can.
+export const logout = (req: Request, res: Response) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+  });
+  return res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
 
 // ─── LOGIN (Password-only, no OTP) ───────────────────────────────────────────
@@ -102,7 +114,7 @@ export const verifyOTP = login; // alias
 
 export const register = async (req: any, res: Response) => {
   try {
-    const { name, mobile, email, referrerId, ePinCode, state, password, role: targetRole } = req.body;
+    const { name, mobile, email, referrerId, state, password, role: targetRole } = req.body;
     const requester = req.user; // From authMiddleware if present
 
     if (!name || !mobile) {
@@ -173,26 +185,30 @@ export const register = async (req: any, res: Response) => {
     await newUser.save();
     await Wallet.create({ user: newUser._id });
 
-    // Mark E-Pin as used if provided
-    if (ePinCode) {
-      const epin = await EPin.findOne({ pinCode: ePinCode.trim().toUpperCase(), status: 'unused' });
-      if (epin) {
-        epin.status = 'used';
-        epin.usedBy = newUser._id as any;
-        epin.usedDate = new Date();
-        await epin.save();
-      }
-    }
+    // E-Pin logic removed (Online Only)
 
-    // Update referrer's team size and monthly recruitment count
+    // Update referrer's monthly recruitment count and recursive team size
+    const updateRecursiveTeamSize = async (startUserId: any) => {
+      let currentId = startUserId;
+      while (currentId) {
+        const user = await User.findById(currentId);
+        if (!user) break;
+        user.teamSize = (user.teamSize || 0) + 1;
+        await user.save();
+        currentId = user.referrerId;
+      }
+    };
+
     if (referrer) {
       await User.findByIdAndUpdate(referrer._id, { 
-        $inc: { teamSize: 1, personalRecruitsThisMonth: 1 } 
+        $inc: { personalRecruitsThisMonth: 1 } 
       });
+      await updateRecursiveTeamSize(referrer._id);
     } else if (requester && requesterRole !== 'admin') {
       await User.findByIdAndUpdate(requester._id, { 
-        $inc: { teamSize: 1, personalRecruitsThisMonth: 1 } 
+        $inc: { personalRecruitsThisMonth: 1 } 
       });
+      await updateRecursiveTeamSize(requester._id);
     }
 
     return res.status(201).json({ 

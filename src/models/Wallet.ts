@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface ILedgerEntry {
   _id?: string;
   amount: number;
-  type: 'direct' | 'override' | 'leadership' | 'withdrawal' | 'tds_deduction';
+  type: 'direct' | 'override' | 'leadership' | 'withdrawal' | 'tds_deduction' | 'manual';
   description: string;
   status: 'provisional' | 'final';
   date: Date;
@@ -29,7 +29,7 @@ const walletSchema = new Schema<IWallet>({
   totalWithdrawn: { type: Number, default: 0 },
   ledger: [{
     amount: Number,
-    type: { type: String, enum: ['direct', 'override', 'leadership', 'withdrawal', 'tds_deduction'] },
+    type: { type: String, enum: ['direct', 'override', 'leadership', 'withdrawal', 'tds_deduction', 'manual'] },
     description: String,
     status: { type: String, enum: ['provisional', 'final'], default: 'provisional' },
     date: { type: Date, default: Date.now },

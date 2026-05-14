@@ -56,19 +56,19 @@ export const getTeamStats = async (req: any, res: Response) => {
 export const getTeamList = async (req: any, res: Response) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
-    const { role, search, page = 1, limit = 10, parentId } = req.query;
+    const { role, search, page = 1, limit = 10, parentId, state } = req.query;
 
     let query: any = {};
     if (parentId) {
       query = { referrerId: new mongoose.Types.ObjectId(parentId as string) };
-    } else if (req.user.role === 'hcc') {
-      // Find peers (same referrer)
-      const currentUser = await User.findById(req.user._id);
-      query = { referrerId: currentUser?.referrerId, role: 'hcc', _id: { $ne: req.user._id } };
     } else {
-      // Find direct downline
+      // Always find direct downline for the current user
       query = { referrerId: userId };
       if (role) query.role = role;
+    }
+
+    if (state) {
+      query.state = state;
     }
 
     if (search) {
@@ -92,11 +92,13 @@ export const getTeamList = async (req: any, res: Response) => {
       // Calculate team sales for this member
       const sales = await Sale.find({ 
         $or: [
+          { sellerId: m._id },
           { hccId: m._id },
           { hcmId: m._id },
           { hbaId: m._id },
           { shId: m._id }
-        ] 
+        ],
+        status: 'active'
       });
       const teamSalesValue = sales.reduce((acc, s) => acc + s.saleAmount, 0);
 

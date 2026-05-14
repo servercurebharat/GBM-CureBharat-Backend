@@ -39,7 +39,7 @@ export const getMyWallet = async (req: any, res: Response) => {
     const successfulWithdrawals = await Withdrawal.find({ user: req.user._id, status: 'success' });
     
     // Fetch Total Sales Value
-    const sales = await Sale.find({ hccId: req.user._id });
+    const sales = await Sale.find({ sellerId: req.user._id });
     const totalSalesValue = sales.reduce((acc, sale) => acc + sale.saleAmount, 0);
 
     // Calculate TDS
@@ -226,6 +226,74 @@ export const getAllProvisional = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('[Wallet] getAllProvisional Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+export const getAllTransactions = async (req: any, res: Response) => {
+  try {
+    const { page = 1, limit = 50, type } = req.query;
+    
+    const pipeline: any[] = [
+      { $unwind: '$ledger' }
+    ];
+
+    if (type && type !== 'All') {
+      pipeline.push({ $match: { 'ledger.type': type.toLowerCase() } });
+    }
+
+    pipeline.push(
+      { $sort: { 'ledger.date': -1 } },
+      { 
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'userDetails'
+        }
+      },
+      { $unwind: '$userDetails' },
+      { $skip: (Number(page) - 1) * Number(limit) },
+      { $limit: Number(limit) },
+      {
+        $project: {
+          _id: '$ledger._id',
+          amount: '$ledger.amount',
+          type: '$ledger.type',
+          description: '$ledger.description',
+          status: '$ledger.status',
+          date: '$ledger.date',
+          cycleMonth: '$ledger.cycleMonth',
+          user: {
+            _id: '$userDetails._id',
+            name: '$userDetails.name',
+            memberId: '$userDetails.memberId',
+            role: '$userDetails.role'
+          }
+        }
+      }
+    );
+
+    const transactions = await Wallet.aggregate(pipeline);
+    
+    const countPipeline: any[] = [{ $unwind: '$ledger' }];
+    if (type && type !== 'All') {
+      countPipeline.push({ $match: { 'ledger.type': type.toLowerCase() } });
+    }
+    countPipeline.push({ $count: 'total' });
+    
+    const totalCount = await Wallet.aggregate(countPipeline);
+
+    return res.status(200).json({
+      success: true,
+      data: transactions,
+      pagination: { 
+        total: totalCount[0]?.total || 0, 
+        page: Number(page), 
+        limit: Number(limit) 
+      }
+    });
+  } catch (error: any) {
+    console.error('[Wallet] getAllTransactions Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

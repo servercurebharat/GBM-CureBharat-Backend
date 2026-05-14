@@ -7,7 +7,7 @@ import { processCommission, getCurrentCycleMonth } from '../lib/commission';
 
 export const createSale = async (req: any, res: Response) => {
   try {
-    const { customerName, customerMobile, planId, ePinCode } = req.body;
+    const { customerName, customerMobile, planId } = req.body;
 
     // 1. Any role can record a sale (Personal Sale)
     const seller = req.user;
@@ -22,17 +22,7 @@ export const createSale = async (req: any, res: Response) => {
     const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
     const totalAmount = plan.price + gstAmount;
 
-    // 4. E-Pin Validation (if provided)
-    let epin = null;
-    if (ePinCode) {
-      epin = await EPin.findOne({ pinCode: ePinCode, status: 'unused' });
-      if (!epin) {
-        return res.status(400).json({ success: false, message: 'E-Pin invalid or already used' });
-      }
-      if (epin.value < totalAmount) {
-        return res.status(400).json({ success: false, message: 'E-Pin value insufficient for this plan (including GST)' });
-      }
-    }
+    // E-Pin logic removed (Online Only)
 
     // 5. Generate unique Policy ID
     const policyId = `CB-POL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -40,25 +30,23 @@ export const createSale = async (req: any, res: Response) => {
     // 6. Create Sale Record
     const newSale = new Sale({
       policyId,
-      hccId: req.user._id,
+      sellerId: req.user._id,
+      sellerMemberId: req.user.memberId,
       plan: planId,
       customerName,
       customerMobile,
       saleAmount: totalAmount,
       businessVolume: plan.businessVolume,
       cycleMonth: getCurrentCycleMonth(),
-      status: 'active'
+      status: 'active',
+      sourceType: 'dashboard',
+      razorpayOrderId: 'INTERNAL',  // For dashboard sales, we'll implement the actual checkout later
+      razorpayPaymentId: `INT_PAY_${Date.now()}`
     });
 
     await newSale.save();
 
-    // 6. Mark E-Pin as used
-    if (epin) {
-      epin.status = 'used';
-      epin.usedBy = req.user._id;
-      epin.usedDate = new Date();
-      await epin.save();
-    }
+    // E-Pin logic removed
 
     // 7. Trigger Commission Processing (Async)
     processCommission(newSale._id.toString()).catch(err => {
@@ -82,53 +70,86 @@ export const getMySales = async (req: any, res: Response) => {
     const { role, _id } = req.user;
     const { page = 1, limit = 10 } = req.query;
 
+    console.log(`[Sales] Fetching sales for user: ${_id}, role: ${role}`);
+
+    console.log(`[Sales] Role: ${role}, ID: ${_id}`);
+    
     let query: any = {};
+    const criteria: any[] = [];
 
     // Filter based on role
-    if (role === 'hcc') {
-      query.hccId = _id;
-    } else if (role === 'admin' || role === 'sh') {
-      // Admin sees everything
-    } else if (role === 'hcm') {
-      // HCM sees their own sales + sales where they are the hcmId
-      query.$or = [
-        { hccId: _id },
-        { hcmId: _id }
-      ];
-    } else if (role === 'hba') {
-      // HBA sees their own sales + sales where they are the hbaId
-      query.$or = [
-        { hccId: _id },
-        { hbaId: _id }
-      ];
+    if (role !== 'admin') {
+      criteria.push({
+        $or: [
+          { sellerId: _id },
+          { hccId: _id },
+          { hcmId: _id },
+          { hbaId: _id },
+          { shId: _id }
+        ]
+      });
     }
 
+    // Search filter
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search as string, 'i');
-      query.$or = [
-        { customerName: searchRegex },
-        { customerMobile: searchRegex },
-        { policyId: searchRegex }
-      ];
+      criteria.push({
+        $or: [
+          { customerName: searchRegex },
+          { customerMobile: searchRegex },
+          { policyId: searchRegex }
+        ]
+      });
     }
 
+    // Status filter
     if (req.query.status && req.query.status !== 'all') {
-      query.status = req.query.status;
+      criteria.push({ status: req.query.status });
     }
+
+    if (criteria.length > 0) {
+      query = { $and: criteria };
+    }
+
+    console.log(`[Sales] Query: ${JSON.stringify(query)}`);
 
     const sales = await Sale.find(query)
       .populate('plan', 'name price')
-      .populate('hccId', 'name memberId')
+      .populate('sellerId', 'name memberId')
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .lean() as any;
 
+    console.log(`[Sales] Found ${sales.length} results`);
+
     const total = await Sale.countDocuments(query);
+
+    // Apply Privacy: Only direct seller can see customer details
+    const processedSales = sales.map((sale: any) => {
+      // If current user is NOT the seller, redact customer details
+      // Admin might still need to see details, but following note literally: 
+      // "detail of sale should see or visible to that particular user's or role only"
+      // We'll allow admin to see everything, but redact for others if they are just in hierarchy.
+      const isSeller = sale.sellerId._id.toString() === _id.toString();
+      const isAdmin = role === 'admin';
+
+      if (isSeller || isAdmin) {
+        return sale;
+      }
+
+      return {
+        ...sale,
+        customerName: 'PROTECTED',
+        customerMobile: '**********',
+        customerEmail: '***',
+        nomineeName: '***'
+      };
+    });
 
     return res.status(200).json({ 
       success: true, 
-      data: sales,
+      data: processedSales,
       pagination: { total, page: Number(page), limit: Number(limit) }
     });
   } catch (error: any) {

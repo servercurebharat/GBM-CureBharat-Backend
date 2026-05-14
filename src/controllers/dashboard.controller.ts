@@ -8,6 +8,7 @@ export const getDashboardSummary = async (req: any, res: Response) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
     const role = req.user.role;
+    const { period, state } = req.query;
     
     // 1. Core Metrics
     let userQuery: any = {};
@@ -34,9 +35,29 @@ export const getDashboardSummary = async (req: any, res: Response) => {
       saleQuery = { 
         $and: [
           { status: 'active' },
-          { $or: [{ hccId: { $in: teamIds } }, { hcmId: { $in: teamIds } }, { hbaId: { $in: teamIds } }, { shId: { $in: teamIds } }] }
+          { $or: [{ sellerId: { $in: teamIds } }, { hcmId: { $in: teamIds } }, { hbaId: { $in: teamIds } }, { shId: { $in: teamIds } }] }
         ]
       };
+    }
+
+    // Apply Filters
+    if (state && state !== 'all') {
+      userQuery.state = state;
+      saleQuery.$and = saleQuery.$and || [];
+      saleQuery.$and.push({ customerState: state });
+    }
+
+    if (period && period !== 'all') {
+      const now = new Date();
+      let startDate = new Date();
+      if (period === 'mtd') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (period === 'ytd') {
+        startDate = new Date(now.getFullYear(), 0, 1);
+      }
+      
+      saleQuery.$and = saleQuery.$and || [];
+      saleQuery.$and.push({ createdAt: { $gte: startDate } });
     }
 
     const totalUsers = await User.countDocuments(userQuery);
@@ -78,18 +99,17 @@ export const getDashboardSummary = async (req: any, res: Response) => {
       });
     }
 
-    // 3. State Contribution
-    const stateMap: Record<string, number> = {};
-    allSales.forEach(s => {
-       // This is tricky because Sale doesn't have state, we'd need to lookup user
-       // For stats, let's assume we enriched them or do a quick aggregation
-    });
-    // Simplified for now:
-    const stateContribution = [
-      { state: 'MH', revenue: Math.round(mtdRevenue * 0.6) },
-      { state: 'DL', revenue: Math.round(mtdRevenue * 0.3) },
-      { state: 'KA', revenue: Math.round(mtdRevenue * 0.1) }
-    ];
+    // 3. State Contribution (Dynamic)
+    const stateStats = await Sale.aggregate([
+      { $match: saleQuery },
+      { $group: { _id: '$customerState', revenue: { $sum: '$saleAmount' } } },
+      { $sort: { revenue: -1 } },
+      { $limit: 5 }
+    ]);
+    const stateContribution = stateStats.map(s => ({ 
+      state: s._id || 'Unknown', 
+      revenue: s.revenue 
+    }));
 
     // 4. Role Distribution
     const roleDistribution = await User.aggregate([
@@ -177,7 +197,7 @@ export const getTopLeaders = async (req: any, res: Response) => {
       const sales = await Sale.find({ 
         $and: [
           { status: 'active' },
-          { $or: [{ hccId: m._id }, { hcmId: m._id }, { hbaId: m._id }, { shId: m._id }] }
+          { $or: [{ sellerId: m._id }, { hcmId: m._id }, { hbaId: m._id }, { shId: m._id }] }
         ]
       });
       const teamSalesValue = sales.reduce((acc, s) => acc + s.saleAmount, 0);
@@ -191,7 +211,7 @@ export const getTopLeaders = async (req: any, res: Response) => {
         directCount,
         teamSalesValue,
         overrideValue: Math.round(teamSalesValue * 0.02),
-        totalIncome: Math.round(teamSalesValue * 0.02) + 1200000 // Dummy base for display as in screenshot
+        totalIncome: Math.round(teamSalesValue * 0.02) // Real calculation
       };
     }));
 

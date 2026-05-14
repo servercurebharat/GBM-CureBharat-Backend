@@ -169,7 +169,7 @@ export const updateKYC = async (req: any, res: Response) => {
 
 export const getAllUsers = async (req: any, res: Response) => {
   try {
-    const { page = 1, limit = 20, search, role } = req.query;
+    const { page = 1, limit = 20, search, role, state, refer } = req.query;
 
     let query: any = {};
     if (search) {
@@ -184,8 +184,26 @@ export const getAllUsers = async (req: any, res: Response) => {
       query.role = role;
     }
 
+    if (state) {
+      query.state = state;
+    }
+
+    if (refer) {
+      // refer could be memberId or name
+      const referrer = await User.findOne({ 
+        $or: [
+          { memberId: refer },
+          { name: { $regex: refer, $options: 'i' } }
+        ]
+      });
+      if (referrer) {
+        query.referrerId = referrer._id;
+      }
+    }
+
     const users = await User.find(query)
       .select('-password')
+      .populate('referrerId', 'name memberId')
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))

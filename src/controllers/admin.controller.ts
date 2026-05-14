@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Config from '../models/Config';
 import User from '../models/User';
+import Wallet from '../models/Wallet';
 
 /**
  * GET /api/admin/commission-config
@@ -90,6 +91,68 @@ export const updateKYCStatus = async (req: Request, res: Response) => {
       success: true, 
       message: `KYC ${status === 'approved' ? 'approved' : 'rejected'} successfully`,
       user 
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /api/admin/manual-adjustment
+ * Apply manual credit or debit to a member's wallet
+ */
+export const createManualAdjustment = async (req: Request, res: Response) => {
+  try {
+    const { memberId, amount, type, reason } = req.body;
+    const adminId = (req as any).user.id;
+
+    if (!memberId || !amount || !type || !reason) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    if (!['credit', 'debit'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid adjustment type' });
+    }
+
+    // Find user by memberId
+    const user = await User.findOne({ memberId });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
+    }
+
+    // Find wallet
+    const wallet = await Wallet.findOne({ user: user._id });
+    if (!wallet) {
+      return res.status(404).json({ success: false, message: 'Wallet not found for this member' });
+    }
+
+    const amountPaise = Math.round(parseFloat(amount) * 100);
+    const adjustmentValue = type === 'credit' ? amountPaise : -amountPaise;
+
+    // Apply adjustment to final balance (manual adjustments are usually final)
+    wallet.finalBalance += adjustmentValue;
+    if (type === 'credit') {
+      wallet.totalEarned += amountPaise;
+    }
+
+    // Record in ledger
+    wallet.ledger.push({
+      amount: adjustmentValue,
+      type: 'manual',
+      description: `Manual Adjustment: ${reason}`,
+      status: 'final',
+      date: new Date(),
+      cycleMonth: new Date().toISOString().slice(0, 7)
+    });
+
+    await wallet.save();
+
+    res.json({ 
+      success: true, 
+      message: `Manual ${type} of ₹${amount} processed for ${user.name}`,
+      data: {
+        newBalance: wallet.finalBalance / 100
+      }
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
