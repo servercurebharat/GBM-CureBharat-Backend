@@ -127,11 +127,18 @@ export const getMySales = async (req: any, res: Response) => {
 
     // Apply Privacy: Only direct seller can see customer details
     const processedSales = sales.map((sale: any) => {
+      // Defensive check: if sellerId is missing (orphaned record), handle gracefully
+      if (!sale.sellerId) {
+        return {
+          ...sale,
+          customerName: 'N/A',
+          customerMobile: 'N/A',
+          customerEmail: 'N/A'
+        };
+      }
+
       // If current user is NOT the seller, redact customer details
-      // Admin might still need to see details, but following note literally: 
-      // "detail of sale should see or visible to that particular user's or role only"
-      // We'll allow admin to see everything, but redact for others if they are just in hierarchy.
-      const isSeller = sale.sellerId._id.toString() === _id.toString();
+      const isSeller = sale.sellerId._id?.toString() === _id.toString();
       const isAdmin = role === 'admin';
 
       if (isSeller || isAdmin) {
