@@ -51,13 +51,6 @@ export const getMyWallet = async (req: any, res: Response) => {
     const successfulCount = successfulWithdrawals.length;
     const successfulValue = successfulWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
 
-    // Determine Cap Amount based on role
-    let capAmount = 100000; // Default ₹1000 for HCC
-    if (req.user.role === 'sh') capAmount = 1000000; // ₹10,000
-    if (req.user.role === 'hba') capAmount = 500000; // ₹5,000
-    if (req.user.role === 'hcm') capAmount = 250000; // ₹2,500
-    if (req.user.role === 'hcc') capAmount = 100000; // ₹1,000
-
     return res.status(200).json({
       success: true,
       data: {
@@ -66,7 +59,6 @@ export const getMyWallet = async (req: any, res: Response) => {
         totalEarned: wallet.totalEarned,
         totalWithdrawn: wallet.totalWithdrawn,
         totalSalesValue,
-        capAmount, 
         pendingPayouts: { count: pendingCount, value: pendingValue },
         successfulPayouts: { count: successfulCount, value: successfulValue },
         totalTDS,

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserById = exports.getAllUsers = exports.updateKYC = exports.getUserStats = exports.getAdminTree = exports.getDownline = void 0;
+exports.updateProfile = exports.getUserById = exports.getAllUsers = exports.updateKYC = exports.getUserStats = exports.getAdminTree = exports.getDownline = void 0;
 const User_1 = __importDefault(require("../models/User"));
 const getDownline = async (req, res) => {
     try {
@@ -166,7 +166,7 @@ const updateKYC = async (req, res) => {
 exports.updateKYC = updateKYC;
 const getAllUsers = async (req, res) => {
     try {
-        const { page = 1, limit = 20, search, role } = req.query;
+        const { page = 1, limit = 20, search, role, state, refer } = req.query;
         let query = {};
         if (search) {
             query.$or = [
@@ -178,8 +178,24 @@ const getAllUsers = async (req, res) => {
         if (role) {
             query.role = role;
         }
+        if (state) {
+            query.state = state;
+        }
+        if (refer) {
+            // refer could be memberId or name
+            const referrer = await User_1.default.findOne({
+                $or: [
+                    { memberId: refer },
+                    { name: { $regex: refer, $options: 'i' } }
+                ]
+            });
+            if (referrer) {
+                query.referrerId = referrer._id;
+            }
+        }
         const users = await User_1.default.find(query)
             .select('-password')
+            .populate('referrerId', 'name memberId')
             .sort({ createdAt: -1 })
             .skip((Number(page) - 1) * Number(limit))
             .limit(Number(limit))
@@ -212,3 +228,26 @@ const getUserById = async (req, res) => {
     }
 };
 exports.getUserById = getUserById;
+const updateProfile = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, mobile } = req.body;
+        // Security: Only allow updating specific fields
+        const updateData = {};
+        if (name)
+            updateData.name = name;
+        if (email)
+            updateData.email = email;
+        if (mobile)
+            updateData.mobile = mobile;
+        const user = await User_1.default.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+        if (!user)
+            return res.status(404).json({ success: false, message: 'User not found' });
+        return res.status(200).json({ success: true, message: 'Profile updated successfully', data: user });
+    }
+    catch (error) {
+        console.error('[User] updateProfile Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+exports.updateProfile = updateProfile;

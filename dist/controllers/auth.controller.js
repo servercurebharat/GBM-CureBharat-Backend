@@ -3,13 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMe = exports.register = exports.verifyOTP = exports.sendOTP = void 0;
+exports.changePassword = exports.getMe = exports.register = exports.verifyOTP = exports.sendOTP = exports.login = exports.logout = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
-const EPin_1 = __importDefault(require("../models/EPin"));
-// In-memory OTP store (replace with Redis in production)
-const otpStore = new Map();
+const activityLogger_1 = require("../lib/activityLogger");
+// EPin import removed
+// Predefined test accounts: mobile -> password
 const PREDEFINED_ACCOUNTS = {
     '9000000000': 'Admin@123',
     '9100000001': 'SH@123456',
@@ -17,118 +17,100 @@ const PREDEFINED_ACCOUNTS = {
     '9300000001': 'HCM@123456',
     '9400000001': 'HCC@123456',
 };
-const sendOTP = async (req, res) => {
+// ─── LOGOUT ──────────────────────────────────────────────────────────────────
+// Clears the httpOnly auth_token — JS cannot do this, only server can.
+const logout = (req, res) => {
+    res.clearCookie('auth_token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+    });
+    return res.status(200).json({ success: true, message: 'Logged out successfully' });
+};
+exports.logout = logout;
+// ─── LOGIN (Password-only, no OTP) ───────────────────────────────────────────
+const login = async (req, res) => {
     try {
-        const { mobile } = req.body;
-        if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+        const { mobile, password, location } = req.body;
+        console.log(`[AUTH] Login attempt for ${mobile} | Has Location: ${!!location}`);
+        if (!mobile || !password) {
+            return res.status(400).json({ success: false, message: 'Mobile and password are required' });
+        }
+        if (!/^[6-9]\d{9}$/.test(mobile)) {
             return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
         }
-        // Check for predefined test accounts
-        if (PREDEFINED_ACCOUNTS[mobile]) {
-            return res.status(200).json({
-                success: true,
-                message: 'Test Account Detected: Use your predefined password',
-                otp: '******'
-            });
-        }
-        // Generate 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        // Store in otpStore with 5 min expiry
-        otpStore.set(mobile, { otp, expiresAt: Date.now() + 300000 });
-        console.log(`[AUTH] OTP for ${mobile}: ${otp}`);
-        // In development, return OTP (remove in production)
-        return res.status(200).json({
-            success: true,
-            message: 'OTP sent successfully',
-            otp: process.env.NODE_ENV === 'development' ? otp : undefined
-        });
-    }
-    catch (error) {
-        console.error('[AUTH] sendOTP Error:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
-    }
-};
-exports.sendOTP = sendOTP;
-const verifyOTP = async (req, res) => {
-    try {
-        const { mobile, otp } = req.body;
-        console.log(`[DEBUG] Attempting Login: Mobile="${mobile}", ReceivedValue="${otp}"`);
+        console.log(`[AUTH] Login attempt: ${mobile}`);
         let isVerified = false;
-        let user = await User_1.default.findOne({ mobile }).lean();
-        // 1. Check for predefined test accounts first
-        const expectedPassword = PREDEFINED_ACCOUNTS[mobile];
-        if (expectedPassword) {
-            console.log(`[DEBUG] Test account detected. Expected Password: "${expectedPassword}"`);
-            if (expectedPassword === otp) {
-                console.log(`[DEBUG] Password MATCH!`);
-                isVerified = true;
-            }
-        }
-        // 2. Check user's set password in DB (for regular members)
-        if (!isVerified && user && user.password && user.password === otp) {
-            console.log(`[DEBUG] Database Password MATCH for ${mobile}`);
+        const user = await User_1.default.findOne({ mobile }).lean();
+        // 1. Check predefined test accounts
+        const predefinedPassword = PREDEFINED_ACCOUNTS[mobile];
+        if (predefinedPassword && predefinedPassword === password) {
             isVerified = true;
+            console.log(`[AUTH] Predefined account matched for ${mobile}`);
         }
-        // 3. Check the normal OTP store
-        if (!isVerified) {
-            const stored = otpStore.get(mobile);
-            if (stored && stored.expiresAt > Date.now() && stored.otp === otp) {
-                console.log(`[DEBUG] Valid OTP found in store for ${mobile}`);
-                isVerified = true;
-                otpStore.delete(mobile);
-            }
-        }
-        // 4. Universal Test OTP Bypass (Development Only)
-        if (!isVerified && process.env.NODE_ENV !== 'production' && otp === '123456') {
-            console.log(`[DEBUG] Universal Test OTP Bypass (123456) used for ${mobile}`);
+        // 2. Check DB password (plain text for now — upgrade to bcrypt later)
+        if (!isVerified && user && user.password && user.password === password) {
             isVerified = true;
+            console.log(`[AUTH] DB password matched for ${mobile}`);
         }
         if (!isVerified) {
-            console.log(`[DEBUG] Login DENIED.`);
-            return res.status(400).json({
-                success: false,
-                message: expectedPassword || (user && user.password) ? 'Invalid Password' : 'Invalid or expired OTP'
-            });
+            console.log(`[AUTH] Login DENIED for ${mobile}`);
+            return res.status(401).json({ success: false, message: 'Invalid mobile number or password' });
         }
         if (!user) {
-            console.log(`[DEBUG] User verified but NOT found in DB. Returning registered:false`);
-            return res.status(200).json({
-                success: true,
-                message: 'Mobile verified, please register',
-                registered: false
-            });
+            return res.status(404).json({ success: false, message: 'Account not found. Please register first.' });
         }
-        console.log(`[DEBUG] Login APPROVED for ${user.name} (${user.role})`);
+        if (user.status === 'blocked') {
+            return res.status(403).json({ success: false, message: 'Your account has been blocked. Contact support.' });
+        }
+        // Update login audit info
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        await User_1.default.findByIdAndUpdate(user._id, {
+            lastLoginIP: Array.isArray(ip) ? ip[0] : ip,
+            lastLoginAt: new Date()
+        });
+        console.log(`[AUTH] Login APPROVED: ${user.name} (${user.role})`);
+        // Log Activity with Location
+        await (0, activityLogger_1.logActivity)(user._id, 'LOGIN', 'auth', 'Successful dashboard login', Array.isArray(ip) ? ip[0] : ip, location);
         // Generate JWT
         const token = jsonwebtoken_1.default.sign({ userId: user._id, role: user.role, rank: user.rank }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
         // Set httpOnly cookie
         res.cookie('auth_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         });
         return res.status(200).json({
             success: true,
-            registered: true,
-            user: {
-                id: user._id,
+            data: {
+                _id: user._id,
                 name: user.name,
+                mobile: user.mobile,
                 role: user.role,
                 rank: user.rank,
-                memberId: user.memberId
+                memberId: user.memberId,
+                status: user.status,
+                kycStatus: user.kycStatus,
             }
         });
     }
     catch (error) {
-        console.error('[AUTH] verifyOTP Error:', error);
+        console.error('[AUTH] login Error:', error);
         return res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
 };
-exports.verifyOTP = verifyOTP;
+exports.login = login;
+// ─── Kept for backward compat — now just delegates to login ─────────────────
+const sendOTP = async (req, res) => {
+    return res.status(410).json({ success: false, message: 'OTP system is deprecated. Use /auth/login instead.' });
+};
+exports.sendOTP = sendOTP;
+exports.verifyOTP = exports.login; // alias
 const register = async (req, res) => {
     try {
-        const { name, mobile, email, referrerId, ePinCode, state, password, role: targetRole } = req.body;
+        const { name, mobile, email, referrerId, state, password, role: targetRole } = req.body;
         const requester = req.user; // From authMiddleware if present
         if (!name || !mobile) {
             return res.status(400).json({ success: false, message: 'Name and mobile are required' });
@@ -187,26 +169,30 @@ const register = async (req, res) => {
         });
         await newUser.save();
         await Wallet_1.default.create({ user: newUser._id });
-        // Mark E-Pin as used if provided
-        if (ePinCode) {
-            const epin = await EPin_1.default.findOne({ pinCode: ePinCode.trim().toUpperCase(), status: 'unused' });
-            if (epin) {
-                epin.status = 'used';
-                epin.usedBy = newUser._id;
-                epin.usedDate = new Date();
-                await epin.save();
+        // E-Pin logic removed (Online Only)
+        // Update referrer's monthly recruitment count and recursive team size
+        const updateRecursiveTeamSize = async (startUserId) => {
+            let currentId = startUserId;
+            while (currentId) {
+                const user = await User_1.default.findById(currentId);
+                if (!user)
+                    break;
+                user.teamSize = (user.teamSize || 0) + 1;
+                await user.save();
+                currentId = user.referrerId;
             }
-        }
-        // Update referrer's team size and monthly recruitment count
+        };
         if (referrer) {
             await User_1.default.findByIdAndUpdate(referrer._id, {
-                $inc: { teamSize: 1, personalRecruitsThisMonth: 1 }
+                $inc: { personalRecruitsThisMonth: 1 }
             });
+            await updateRecursiveTeamSize(referrer._id);
         }
         else if (requester && requesterRole !== 'admin') {
             await User_1.default.findByIdAndUpdate(requester._id, {
-                $inc: { teamSize: 1, personalRecruitsThisMonth: 1 }
+                $inc: { personalRecruitsThisMonth: 1 }
             });
+            await updateRecursiveTeamSize(requester._id);
         }
         return res.status(201).json({
             success: true,
@@ -228,7 +214,7 @@ const getMe = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
-        return res.status(200).json({ success: true, user });
+        return res.status(200).json({ success: true, data: user });
     }
     catch (error) {
         console.error('[AUTH] getMe Error:', error);
@@ -236,3 +222,32 @@ const getMe = async (req, res) => {
     }
 };
 exports.getMe = getMe;
+const changePassword = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const userId = req.user._id;
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Old and new passwords are required' });
+        }
+        const user = await User_1.default.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        // Verify old password (check both DB and Predefined Accounts for consistency)
+        const predefinedPassword = PREDEFINED_ACCOUNTS[user.mobile];
+        const isValid = (user.password === oldPassword) || (predefinedPassword && predefinedPassword === oldPassword);
+        if (!isValid) {
+            return res.status(401).json({ success: false, message: 'Incorrect old password' });
+        }
+        // Update password
+        user.password = newPassword;
+        await user.save();
+        console.log(`[AUTH] Password changed for user: ${user.memberId}`);
+        return res.status(200).json({ success: true, message: 'Password changed successfully' });
+    }
+    catch (error) {
+        console.error('[AUTH] changePassword Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+exports.changePassword = changePassword;

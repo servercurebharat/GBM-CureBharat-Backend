@@ -34,22 +34,27 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const walletSchema = new mongoose_1.Schema({
-    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-    provisionalBalance: { type: Number, default: 0 },
-    finalBalance: { type: Number, default: 0 },
-    totalEarned: { type: Number, default: 0 },
-    totalWithdrawn: { type: Number, default: 0 },
-    ledger: [{
-            amount: Number,
-            type: { type: String, enum: ['direct', 'override', 'leadership', 'withdrawal', 'tds_deduction', 'manual'] },
-            description: String,
-            status: { type: String, enum: ['provisional', 'final'], default: 'provisional' },
-            date: { type: Date, default: Date.now },
-            sourceUserId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
-            saleId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Sale' },
-            cycleMonth: String
-        }]
-}, { timestamps: true });
-// Index on user removed as it is already indexed via unique: true
-exports.default = mongoose_1.default.models.Wallet || mongoose_1.default.model('Wallet', walletSchema);
+const ActivityLogSchema = new mongoose_1.Schema({
+    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    userName: { type: String, required: true },
+    userRole: { type: String, required: true },
+    action: { type: String, required: true },
+    category: {
+        type: String,
+        enum: ['auth', 'financial', 'network', 'system', 'kyc'],
+        required: true
+    },
+    details: { type: String, required: true },
+    ipAddress: { type: String },
+    location: {
+        lat: { type: Number },
+        lng: { type: Number },
+        city: { type: String }
+    },
+    createdAt: { type: Date, default: Date.now }
+});
+// Index for high-performance filtering
+ActivityLogSchema.index({ createdAt: -1 });
+ActivityLogSchema.index({ userRole: 1 });
+ActivityLogSchema.index({ category: 1 });
+exports.default = mongoose_1.default.model('ActivityLog', ActivityLogSchema);

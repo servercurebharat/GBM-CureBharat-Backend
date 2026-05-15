@@ -14,11 +14,14 @@ const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const user_routes_1 = __importDefault(require("./routes/user.routes"));
 const sale_routes_1 = __importDefault(require("./routes/sale.routes"));
 const wallet_routes_1 = __importDefault(require("./routes/wallet.routes"));
-const epin_routes_1 = __importDefault(require("./routes/epin.routes"));
+// E-Pin routes removed
 const plan_routes_1 = __importDefault(require("./routes/plan.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const team_routes_1 = __importDefault(require("./routes/team.routes"));
 const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
+const public_routes_1 = __importDefault(require("./routes/public.routes"));
+const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
+const activity_routes_1 = __importDefault(require("./routes/activity.routes"));
 // Logic & Cron
 const payoutCycle_1 = require("./lib/payoutCycle");
 // Critical: Validate environment before proceeding
@@ -102,11 +105,14 @@ app.use('/api/auth', auth_routes_1.default);
 app.use('/api/users', user_routes_1.default);
 app.use('/api/sales', sale_routes_1.default);
 app.use('/api/wallet', wallet_routes_1.default);
-app.use('/api/epins', epin_routes_1.default);
+// E-Pin routes removed
 app.use('/api/plans', plan_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
 app.use('/api/team', team_routes_1.default);
 app.use('/api/dashboard', dashboard_routes_1.default);
+app.use('/api/public', public_routes_1.default); // No auth — public Razorpay payment routes
+app.use('/api/notifications', notification_routes_1.default);
+app.use('/api/activity', activity_routes_1.default);
 // Health Check
 app.get('/api/health', (req, res) => {
     res.json({

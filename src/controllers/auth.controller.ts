@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import Wallet from '../models/Wallet';
+import { logActivity } from '../lib/activityLogger';
 // EPin import removed
 
 // Predefined test accounts: mobile -> password
@@ -28,7 +29,8 @@ export const logout = (req: Request, res: Response) => {
 // ─── LOGIN (Password-only, no OTP) ───────────────────────────────────────────
 export const login = async (req: Request, res: Response) => {
   try {
-    const { mobile, password } = req.body;
+    const { mobile, password, location } = req.body;
+    console.log(`[AUTH] Login attempt for ${mobile} | Has Location: ${!!location}`);
 
     if (!mobile || !password) {
       return res.status(400).json({ success: false, message: 'Mobile and password are required' });
@@ -69,7 +71,17 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'Your account has been blocked. Contact support.' });
     }
 
+    // Update login audit info
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    await User.findByIdAndUpdate(user._id, {
+      lastLoginIP: Array.isArray(ip) ? ip[0] : ip,
+      lastLoginAt: new Date()
+    });
+
     console.log(`[AUTH] Login APPROVED: ${user.name} (${user.role})`);
+
+    // Log Activity with Location
+    await logActivity(user._id, 'LOGIN', 'auth', 'Successful dashboard login', Array.isArray(ip) ? ip[0] : ip, location);
 
     // Generate JWT
     const token = jwt.sign(
@@ -235,6 +247,41 @@ export const getMe = async (req: any, res: Response) => {
     return res.status(200).json({ success: true, data: user });
   } catch (error: any) {
     console.error('[AUTH] getMe Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const changePassword = async (req: any, res: Response) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user._id;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Old and new passwords are required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Verify old password (check both DB and Predefined Accounts for consistency)
+    const predefinedPassword = PREDEFINED_ACCOUNTS[user.mobile];
+    const isValid = (user.password === oldPassword) || (predefinedPassword && predefinedPassword === oldPassword);
+
+    if (!isValid) {
+      return res.status(401).json({ success: false, message: 'Incorrect old password' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    console.log(`[AUTH] Password changed for user: ${user.memberId}`);
+
+    return res.status(200).json({ success: true, message: 'Password changed successfully' });
+  } catch (error: any) {
+    console.error('[AUTH] changePassword Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

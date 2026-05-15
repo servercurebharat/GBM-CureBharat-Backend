@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDownline, updateKYC, getAllUsers, getUserById, getUserStats } from '../controllers/user.controller';
+import { getDownline, updateKYC, getAllUsers, getUserById, getUserStats, updateProfile } from '../controllers/user.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
 import { upload } from '../config/cloudinary';
@@ -17,5 +17,6 @@ router.put('/:id/kyc', authMiddleware, upload.fields([
   { name: 'bankProof', maxCount: 1 },
   { name: 'selfie', maxCount: 1 }
 ]), updateKYC);
+router.put('/:id/profile', authMiddleware, updateProfile);
 
 export default router;

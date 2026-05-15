@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCommissionConfig, updateCommissionConfig, getPendingKYC, updateKYCStatus, createManualAdjustment } from '../controllers/admin.controller';
+import { getCommissionConfig, updateCommissionConfig, getPendingKYC, updateKYCStatus, createManualAdjustment, updateUserStatus } from '../controllers/admin.controller';
 import { getAdminTree } from '../controllers/user.controller';
 import { getStatePerformance } from '../controllers/analytics.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -15,6 +15,7 @@ router.get('/commission-config', getCommissionConfig);
 router.put('/commission-config', updateCommissionConfig);
 router.get('/kyc/pending', getPendingKYC);
 router.put('/kyc/:id/status', updateKYCStatus);
+router.put('/users/:id/status', updateUserStatus);
 router.get('/tree', getAdminTree);
 router.post('/manual-adjustment', createManualAdjustment);
 router.get('/state-performance', getStatePerformance);

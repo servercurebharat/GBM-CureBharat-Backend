@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAllProvisional = exports.triggerPayoutCycle = exports.getMyWithdrawals = exports.requestWithdrawal = exports.getMyWallet = void 0;
+exports.getAllTransactions = exports.getAllProvisional = exports.triggerPayoutCycle = exports.getMyWithdrawals = exports.requestWithdrawal = exports.getMyWallet = void 0;
 const Wallet_1 = __importDefault(require("../models/Wallet"));
 const User_1 = __importDefault(require("../models/User"));
 const Withdrawal_1 = __importDefault(require("../models/Withdrawal"));
@@ -40,7 +40,7 @@ const getMyWallet = async (req, res) => {
         const pendingWithdrawals = await Withdrawal_1.default.find({ user: req.user._id, status: { $in: ['pending', 'processing'] } });
         const successfulWithdrawals = await Withdrawal_1.default.find({ user: req.user._id, status: 'success' });
         // Fetch Total Sales Value
-        const sales = await Sale_1.default.find({ hccId: req.user._id });
+        const sales = await Sale_1.default.find({ sellerId: req.user._id });
         const totalSalesValue = sales.reduce((acc, sale) => acc + sale.saleAmount, 0);
         // Calculate TDS
         const withdrawalRecords = await Withdrawal_1.default.find({ user: req.user._id });
@@ -49,16 +49,6 @@ const getMyWallet = async (req, res) => {
         const pendingValue = pendingWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
         const successfulCount = successfulWithdrawals.length;
         const successfulValue = successfulWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
-        // Determine Cap Amount based on role
-        let capAmount = 100000; // Default ₹1000 for HCC
-        if (req.user.role === 'sh')
-            capAmount = 1000000; // ₹10,000
-        if (req.user.role === 'hba')
-            capAmount = 500000; // ₹5,000
-        if (req.user.role === 'hcm')
-            capAmount = 250000; // ₹2,500
-        if (req.user.role === 'hcc')
-            capAmount = 100000; // ₹1,000
         return res.status(200).json({
             success: true,
             data: {
@@ -67,7 +57,6 @@ const getMyWallet = async (req, res) => {
                 totalEarned: wallet.totalEarned,
                 totalWithdrawn: wallet.totalWithdrawn,
                 totalSalesValue,
-                capAmount,
                 pendingPayouts: { count: pendingCount, value: pendingValue },
                 successfulPayouts: { count: successfulCount, value: successfulValue },
                 totalTDS,
@@ -214,3 +203,59 @@ const getAllProvisional = async (req, res) => {
     }
 };
 exports.getAllProvisional = getAllProvisional;
+const getAllTransactions = async (req, res) => {
+    try {
+        const { page = 1, limit = 50, type } = req.query;
+        const pipeline = [
+            { $unwind: '$ledger' }
+        ];
+        if (type && type !== 'All') {
+            pipeline.push({ $match: { 'ledger.type': type.toLowerCase() } });
+        }
+        pipeline.push({ $sort: { 'ledger.date': -1 } }, {
+            $lookup: {
+                from: 'users',
+                localField: 'user',
+                foreignField: '_id',
+                as: 'userDetails'
+            }
+        }, { $unwind: '$userDetails' }, { $skip: (Number(page) - 1) * Number(limit) }, { $limit: Number(limit) }, {
+            $project: {
+                _id: '$ledger._id',
+                amount: '$ledger.amount',
+                type: '$ledger.type',
+                description: '$ledger.description',
+                status: '$ledger.status',
+                date: '$ledger.date',
+                cycleMonth: '$ledger.cycleMonth',
+                user: {
+                    _id: '$userDetails._id',
+                    name: '$userDetails.name',
+                    memberId: '$userDetails.memberId',
+                    role: '$userDetails.role'
+                }
+            }
+        });
+        const transactions = await Wallet_1.default.aggregate(pipeline);
+        const countPipeline = [{ $unwind: '$ledger' }];
+        if (type && type !== 'All') {
+            countPipeline.push({ $match: { 'ledger.type': type.toLowerCase() } });
+        }
+        countPipeline.push({ $count: 'total' });
+        const totalCount = await Wallet_1.default.aggregate(countPipeline);
+        return res.status(200).json({
+            success: true,
+            data: transactions,
+            pagination: {
+                total: totalCount[0]?.total || 0,
+                page: Number(page),
+                limit: Number(limit)
+            }
+        });
+    }
+    catch (error) {
+        console.error('[Wallet] getAllTransactions Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+exports.getAllTransactions = getAllTransactions;

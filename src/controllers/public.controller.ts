@@ -4,7 +4,9 @@ import crypto from 'crypto';
 import User from '../models/User';
 import Plan from '../models/Plan';
 import Sale from '../models/Sale';
+import Wallet from '../models/Wallet';
 import { processCommission, getCurrentCycleMonth } from '../lib/commission';
+import { Types } from 'mongoose';
 
 /**
  * Lazy initialization of Razorpay client to prevent crash on startup
@@ -233,6 +235,56 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
     console.log(`[Public] Sale created: ${policyId} | Seller: ${seller.memberId} | Plan: ${plan.name}`);
 
+    // ── Create User Account if not exists ──────────────────────────────────
+    let newUserAccount = await User.findOne({ mobile: customerMobile });
+    let createdNewUser = false;
+
+    if (!newUserAccount) {
+      console.log(`[Public] Creating new user account for ${customerMobile}`);
+      
+      // Generate unique memberId for HCC
+      const lastHCC = await User.findOne({ role: 'hcc' }).sort({ createdAt: -1 });
+      let nextNum = 1001;
+      if (lastHCC && lastHCC.memberId) {
+        const match = lastHCC.memberId.match(/\d+$/);
+        if (match) nextNum = parseInt(match[0]) + 1;
+      }
+      const newMemberId = `CB-HCC-${nextNum}`;
+
+      newUserAccount = new User({
+        name: customerName,
+        mobile: customerMobile,
+        email: customerEmail,
+        state: customerState || 'Maharashtra',
+        password: '123456', // Default password
+        memberId: newMemberId,
+        referrerId: seller._id,
+        role: 'hcc',
+        rank: 'HCC',
+        status: 'active',
+        kycStatus: 'not_submitted'
+      });
+
+      await newUserAccount.save();
+      await Wallet.create({ user: newUserAccount._id });
+      createdNewUser = true;
+
+      // Update referrer's recruitment count and team size
+      await User.findByIdAndUpdate(seller._id, { $inc: { personalRecruitsThisMonth: 1 } });
+      
+      // Update recursive team size
+      let currentRefId = seller._id;
+      while (currentRefId) {
+        const refUser = await User.findById(currentRefId);
+        if (!refUser) break;
+        refUser.teamSize = (refUser.teamSize || 0) + 1;
+        await refUser.save();
+        currentRefId = refUser.referrerId;
+      }
+
+      console.log(`[Public] User account created: ${newMemberId} for ${customerName}`);
+    }
+
     // ── Trigger Commission (async — don't block response) ──────────────────
     processCommission(newSale._id.toString()).catch((err) => {
       console.error(`[Commission Error] Sale ${newSale._id}:`, err);
@@ -245,6 +297,11 @@ export const verifyPayment = async (req: Request, res: Response) => {
         planName: plan.name,
         amount: plan.price,
         sellerName: seller.name,
+        newUser: createdNewUser ? {
+          memberId: newUserAccount.memberId,
+          password: '123456',
+          message: 'Account created! You can now login with your mobile and password.'
+        } : null
       },
     });
   } catch (error: any) {

@@ -34,22 +34,15 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const walletSchema = new mongoose_1.Schema({
-    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-    provisionalBalance: { type: Number, default: 0 },
-    finalBalance: { type: Number, default: 0 },
-    totalEarned: { type: Number, default: 0 },
-    totalWithdrawn: { type: Number, default: 0 },
-    ledger: [{
-            amount: Number,
-            type: { type: String, enum: ['direct', 'override', 'leadership', 'withdrawal', 'tds_deduction', 'manual'] },
-            description: String,
-            status: { type: String, enum: ['provisional', 'final'], default: 'provisional' },
-            date: { type: Date, default: Date.now },
-            sourceUserId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
-            saleId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Sale' },
-            cycleMonth: String
-        }]
-}, { timestamps: true });
-// Index on user removed as it is already indexed via unique: true
-exports.default = mongoose_1.default.models.Wallet || mongoose_1.default.model('Wallet', walletSchema);
+const NotificationSchema = new mongoose_1.Schema({
+    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    type: { type: String, enum: ['info', 'warning', 'success', 'error'], default: 'info' },
+    link: { type: String },
+    isRead: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+});
+// Index for faster queries
+NotificationSchema.index({ userId: 1, createdAt: -1 });
+exports.default = mongoose_1.default.model('Notification', NotificationSchema);

@@ -18,6 +18,8 @@ import adminRoutes from './routes/admin.routes';
 import teamRoutes from './routes/team.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import publicRoutes from './routes/public.routes';
+import notificationRoutes from './routes/notification.routes';
+import activityRoutes from './routes/activity.routes';
 
 // Logic & Cron
 import { scheduleMaintenanceCrons } from './lib/payoutCycle';
@@ -118,6 +120,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/public', publicRoutes); // No auth — public Razorpay payment routes
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/activity', activityRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

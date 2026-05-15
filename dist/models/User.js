@@ -64,6 +64,8 @@ const userSchema = new mongoose_1.Schema({
     lastActiveMonth: { type: String }, // YYYY-MM
     teamSize: { type: Number, default: 0 },
     joiningDate: { type: Date, default: Date.now },
+    lastLoginIP: { type: String },
+    lastLoginAt: { type: Date },
 }, { timestamps: true });
 // Indexes
 userSchema.index({ role: 1 });

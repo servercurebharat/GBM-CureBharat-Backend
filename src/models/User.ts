@@ -30,6 +30,8 @@ export interface IUser extends Document {
   lastActiveMonth?: string;
   teamSize: number;
   joiningDate: Date;
+  lastLoginIP?: string;
+  lastLoginAt?: Date;
   createdAt: Date;
 }
 
@@ -63,6 +65,8 @@ const userSchema = new Schema<IUser>({
   lastActiveMonth: { type: String }, // YYYY-MM
   teamSize: { type: Number, default: 0 },
   joiningDate: { type: Date, default: Date.now },
+  lastLoginIP: { type: String },
+  lastLoginAt: { type: Date },
 }, { timestamps: true });
 
 // Indexes

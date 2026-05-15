@@ -17,4 +17,5 @@ router.put('/:id/kyc', auth_middleware_1.authMiddleware, cloudinary_1.upload.fie
     { name: 'bankProof', maxCount: 1 },
     { name: 'selfie', maxCount: 1 }
 ]), user_controller_1.updateKYC);
+router.put('/:id/profile', auth_middleware_1.authMiddleware, user_controller_1.updateProfile);
 exports.default = router;

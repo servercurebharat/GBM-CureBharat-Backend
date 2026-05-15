@@ -155,25 +155,26 @@ export const getTopLeaders = async (req: any, res: Response) => {
     const userId = new mongoose.Types.ObjectId(req.user._id);
     const role = req.user.role;
 
+    const { role: filterRole } = req.query;
     let targetRole = '';
     let query: any = {};
 
     switch (role) {
       case 'admin':
-        targetRole = 'sh';
-        query = { role: 'sh' };
+        targetRole = filterRole ? (filterRole as string) : 'sh';
+        query = { role: targetRole };
         break;
       case 'sh':
-        targetRole = 'hba';
-        query = { role: 'hba', referrerId: userId };
+        targetRole = filterRole ? (filterRole as string) : 'hba';
+        query = { role: targetRole, referrerId: userId };
         break;
       case 'hba':
-        targetRole = 'hcm';
-        query = { role: 'hcm', referrerId: userId };
+        targetRole = filterRole ? (filterRole as string) : 'hcm';
+        query = { role: targetRole, referrerId: userId };
         break;
       case 'hcm':
-        targetRole = 'hcc';
-        query = { role: 'hcc', referrerId: userId };
+        targetRole = filterRole ? (filterRole as string) : 'hcc';
+        query = { role: targetRole, referrerId: userId };
         break;
       case 'hcc':
         targetRole = 'hcc';

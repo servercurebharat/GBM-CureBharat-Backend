@@ -235,3 +235,24 @@ export const getUserById = async (req: any, res: Response) => {
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+export const updateProfile = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, email, mobile } = req.body;
+
+    // Security: Only allow updating specific fields
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (mobile) updateData.mobile = mobile;
+
+    const user = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    return res.status(200).json({ success: true, message: 'Profile updated successfully', data: user });
+  } catch (error: any) {
+    console.error('[User] updateProfile Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};

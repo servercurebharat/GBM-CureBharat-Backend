@@ -38,19 +38,29 @@ const saleSchema = new mongoose_1.Schema({
     policyId: { type: String, required: true, unique: true },
     customerName: { type: String, required: true },
     customerMobile: { type: String, required: true },
+    customerEmail: { type: String },
+    customerState: { type: String },
+    nomineeName: { type: String },
+    nomineeRelation: { type: String },
     plan: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Plan', required: true },
     saleAmount: { type: Number, required: true },
     businessVolume: { type: Number, required: true },
-    hccId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    sellerId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    sellerMemberId: { type: String, required: true },
+    hccId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
     hcmId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
     hbaId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
     shId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
-    ePinCode: { type: String },
-    paymentMethod: { type: String, enum: ['epin', 'online'], default: 'epin' },
+    razorpayOrderId: { type: String, required: true },
+    razorpayPaymentId: { type: String, required: true, unique: true },
+    paymentMethod: { type: String, default: 'razorpay' },
+    sourceType: { type: String, enum: ['dashboard', 'public_link'], default: 'dashboard' },
     status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
     commissionProcessed: { type: Boolean, default: false },
     cycleMonth: { type: String, required: true },
 }, { timestamps: true });
-saleSchema.index({ hccId: 1 });
+saleSchema.index({ sellerId: 1 });
 saleSchema.index({ cycleMonth: 1 });
+// Redundant index removed as it is already defined in the field definition above
+// saleSchema.index({ razorpayPaymentId: 1 }, { unique: true });
 exports.default = mongoose_1.default.models.Sale || mongoose_1.default.model('Sale', saleSchema);

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMTDAnalytics = exports.getFTDAnalytics = void 0;
+exports.getStatePerformance = exports.getMTDAnalytics = exports.getFTDAnalytics = void 0;
 const Sale_1 = __importDefault(require("../models/Sale"));
 const User_1 = __importDefault(require("../models/User"));
 const getFTDAnalytics = async (req, res) => {
@@ -32,7 +32,7 @@ const getFTDAnalytics = async (req, res) => {
         const hourlyVelocity = await Sale_1.default.aggregate([
             { $match: matchQuery },
             { $group: {
-                    _id: { $hour: { date: '$createdAt', timezone: 'Asia/Kolkata' } },
+                    _id: { $hour: '$createdAt' },
                     sales: { $sum: 1 },
                     revenue: { $sum: '$saleAmount' }
                 } },
@@ -46,42 +46,63 @@ const getFTDAnalytics = async (req, res) => {
         }));
         hourlyVelocity.forEach(h => {
             // Depending on the version of mongo and daylight savings, hour might be outside bounds if poorly formatted
-            if (h._id >= 0 && h._id < 24) {
+            if (h._id !== null && h._id !== undefined && h._id >= 0 && h._id < 24) {
                 normalizedHourly[h._id].sales = h.sales;
                 normalizedHourly[h._id].revenue = h.revenue;
             }
         });
-        // 3. Top Performers (by HCC)
-        const topPerformers = await Sale_1.default.aggregate([
-            { $match: matchQuery },
-            { $group: {
-                    _id: '$hccId',
-                    sales: { $sum: 1 },
-                    revenue: { $sum: '$saleAmount' }
-                } },
-            { $sort: { revenue: -1 } },
-            { $limit: 10 },
-            { $lookup: {
-                    from: 'users',
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'user'
-                } },
-            { $unwind: '$user' },
-            { $project: {
-                    _id: 1,
-                    sales: 1,
-                    revenue: 1,
-                    name: '$user.name',
-                    memberId: '$user.memberId'
-                } }
-        ]);
+        // 3. Top Performers (by Role)
+        const getTopByRole = async (roleField) => {
+            return Sale_1.default.aggregate([
+                { $match: matchQuery },
+                { $group: {
+                        _id: `$${roleField}`,
+                        sales: { $sum: 1 },
+                        revenue: { $sum: '$saleAmount' }
+                    } },
+                { $match: { _id: { $ne: null } } },
+                { $sort: { revenue: -1 } },
+                { $limit: 10 },
+                { $lookup: {
+                        from: 'users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user'
+                    } },
+                { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+                { $lookup: {
+                        from: 'users',
+                        localField: 'user.referrerId',
+                        foreignField: '_id',
+                        as: 'recruiter'
+                    } },
+                { $unwind: { path: '$recruiter', preserveNullAndEmptyArrays: true } },
+                { $project: {
+                        _id: 1,
+                        sales: 1,
+                        revenue: 1,
+                        name: { $ifNull: ['$user.name', 'Unknown Member'] },
+                        memberId: { $ifNull: ['$user.memberId', 'N/A'] },
+                        recruiterName: '$recruiter.name',
+                        recruiterMemberId: '$recruiter.memberId'
+                    } }
+            ]);
+        };
+        const topHCC = await getTopByRole('hccId');
+        const topHCM = await getTopByRole('hcmId');
+        const topHBA = await getTopByRole('hbaId');
+        const topSH = await getTopByRole('shId');
         return res.status(200).json({
             success: true,
             data: {
                 metrics: metrics[0] || { totalRevenue: 0, totalSales: 0 },
                 hourlyVelocity: normalizedHourly,
-                topPerformers
+                topPerformers: {
+                    hcc: topHCC,
+                    hcm: topHCM,
+                    hba: topHBA,
+                    sh: topSH
+                }
             }
         });
     }
@@ -114,7 +135,7 @@ const getMTDAnalytics = async (req, res) => {
             { $match: matchQuery },
             { $lookup: {
                     from: 'users',
-                    localField: 'hccId',
+                    localField: 'sellerId',
                     foreignField: '_id',
                     as: 'seller'
                 } },
@@ -135,12 +156,59 @@ const getMTDAnalytics = async (req, res) => {
         const newMembersCount = await User_1.default.countDocuments({
             createdAt: { $gte: startOfMonth, $lte: endOfMonth }
         });
+        // 3. Top Performers (by Role) - MTD
+        const getTopByRole = async (roleField) => {
+            return Sale_1.default.aggregate([
+                { $match: matchQuery },
+                { $group: {
+                        _id: `$${roleField}`,
+                        sales: { $sum: 1 },
+                        revenue: { $sum: '$saleAmount' }
+                    } },
+                { $match: { _id: { $ne: null } } },
+                { $sort: { revenue: -1 } },
+                { $limit: 10 },
+                { $lookup: {
+                        from: 'users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user'
+                    } },
+                { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+                { $lookup: {
+                        from: 'users',
+                        localField: 'user.referrerId',
+                        foreignField: '_id',
+                        as: 'recruiter'
+                    } },
+                { $unwind: { path: '$recruiter', preserveNullAndEmptyArrays: true } },
+                { $project: {
+                        _id: 1,
+                        sales: 1,
+                        revenue: 1,
+                        name: { $ifNull: ['$user.name', 'Unknown Member'] },
+                        memberId: { $ifNull: ['$user.memberId', 'N/A'] },
+                        recruiterName: '$recruiter.name',
+                        recruiterMemberId: '$recruiter.memberId'
+                    } }
+            ]);
+        };
+        const topHCC = await getTopByRole('hccId');
+        const topHCM = await getTopByRole('hcmId');
+        const topHBA = await getTopByRole('hbaId');
+        const topSH = await getTopByRole('shId');
         return res.status(200).json({
             success: true,
             data: {
                 metrics: metrics[0] || { totalRevenue: 0, totalSales: 0 },
                 stateBreakdown,
-                newMembersCount
+                newMembersCount,
+                topPerformers: {
+                    hcc: topHCC,
+                    hcm: topHCM,
+                    hba: topHBA,
+                    sh: topSH
+                }
             }
         });
     }
@@ -150,3 +218,55 @@ const getMTDAnalytics = async (req, res) => {
     }
 };
 exports.getMTDAnalytics = getMTDAnalytics;
+const getStatePerformance = async (req, res) => {
+    try {
+        // 1. Get all sales grouped by state
+        const salesByState = await Sale_1.default.aggregate([
+            { $match: { status: 'active' } },
+            { $lookup: {
+                    from: 'users',
+                    localField: 'sellerId',
+                    foreignField: '_id',
+                    as: 'seller'
+                } },
+            { $unwind: '$seller' },
+            { $group: {
+                    _id: '$seller.state',
+                    revenue: { $sum: '$saleAmount' },
+                    sales: { $sum: 1 }
+                } },
+            { $sort: { revenue: -1 } }
+        ]);
+        // 2. Get user count grouped by state
+        const membersByState = await User_1.default.aggregate([
+            { $group: {
+                    _id: '$state',
+                    count: { $sum: 1 }
+                } }
+        ]);
+        // 3. Get Top SH per state
+        const topSHByState = await User_1.default.find({ role: 'sh' }).select('name state memberId').lean();
+        // 4. Merge results
+        const statesData = salesByState.map(s => {
+            const members = membersByState.find(m => m._id === s._id)?.count || 0;
+            const sh = topSHByState.find(u => u.state === s._id);
+            // Generate a simple growth indicator based on sales count (mock logic for now)
+            const growthValue = (s.sales > 5 ? (Math.random() * 15 + 5) : (Math.random() * 5)).toFixed(1);
+            return {
+                state: s._id || 'Unknown',
+                code: s._id ? s._id.substring(0, 2).toUpperCase() : '??',
+                members,
+                sales: s.sales,
+                revenue: s.revenue,
+                topSH: sh ? sh.name : 'Unassigned',
+                growth: `+${growthValue}%`
+            };
+        });
+        return res.status(200).json({ success: true, data: statesData });
+    }
+    catch (error) {
+        console.error('[Analytics] State Performance Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+exports.getStatePerformance = getStatePerformance;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, sendOTP, verifyOTP, register, getMe, logout } from '../controllers/auth.controller';
+import { login, sendOTP, verifyOTP, register, getMe, logout, changePassword } from '../controllers/auth.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -16,5 +16,6 @@ router.post('/verify-otp', verifyOTP);
 
 router.post('/register', optionalAuthMiddleware, register);
 router.get('/me', authMiddleware, getMe);
+router.post('/change-password', authMiddleware, changePassword);
 
 export default router;

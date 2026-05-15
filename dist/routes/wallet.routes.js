@@ -9,5 +9,6 @@ router.get('/my', auth_middleware_1.authMiddleware, wallet_controller_1.getMyWal
 router.post('/withdraw', auth_middleware_1.authMiddleware, wallet_controller_1.requestWithdrawal);
 router.get('/withdrawals', auth_middleware_1.authMiddleware, wallet_controller_1.getMyWithdrawals);
 router.get('/all-provisional', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.getAllProvisional);
+router.get('/global-ledger', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.getAllTransactions);
 router.post('/payout-cycle', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.triggerPayoutCycle);
 exports.default = router;

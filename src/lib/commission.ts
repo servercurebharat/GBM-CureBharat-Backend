@@ -133,6 +133,16 @@ export async function processCommission(saleId: string): Promise<void> {
   }
 
   // ── FINALIZE ──────────────────────────────────────────────────────────────
+  // Set role IDs for visibility based on seller role
+  if (seller.role === 'hcc') sale.hccId = seller._id as Types.ObjectId;
+  else if (seller.role === 'hcm') sale.hcmId = seller._id as Types.ObjectId;
+  else if (seller.role === 'hba') sale.hbaId = seller._id as Types.ObjectId;
+  else if (seller.role === 'sh') sale.shId = seller._id as Types.ObjectId;
+  
+  if (hcm) sale.hcmId = hcm._id as Types.ObjectId;
+  if (hba) sale.hbaId = hba._id as Types.ObjectId;
+  if (sh) sale.shId = sh._id as Types.ObjectId;
+
   sale.commissionProcessed = true;
   await sale.save();
 
