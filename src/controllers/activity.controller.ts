@@ -27,6 +27,7 @@ export const getActivityLogs = async (req: Request, res: Response) => {
 
     const [logs, total] = await Promise.all([
       ActivityLog.find(query)
+        .populate('userId', 'totalTimeSpent')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),

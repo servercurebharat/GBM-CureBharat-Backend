@@ -5,6 +5,7 @@ import Withdrawal from '../models/Withdrawal';
 import Sale from '../models/Sale';
 import { runPayoutCycle } from '../lib/payoutCycle';
 import crypto from 'crypto';
+import { createNotification } from './notification.controller';
 
 export const getMyWallet = async (req: any, res: Response) => {
   try {
@@ -125,6 +126,22 @@ export const requestWithdrawal = async (req: any, res: Response) => {
     });
 
     await wallet.save();
+
+    // Trigger in-app notification to all admin users about the withdrawal request!
+    try {
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await createNotification(
+          admin._id.toString(),
+          'Withdrawal Requested',
+          `Partner ${user.name} (${user.memberId}) has requested a withdrawal of ₹${(amount / 100).toFixed(2)}. Request ID: ${requestId}.`,
+          'warning',
+          `/admin/payouts`
+        );
+      }
+    } catch (notifErr) {
+      console.error('[Wallet] Admin notification failed:', notifErr);
+    }
 
     return res.status(200).json({ 
       success: true, 

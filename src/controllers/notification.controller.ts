@@ -50,3 +50,12 @@ export const createNotification = async (userId: string, title: string, message:
     console.error('Failed to create notification', err);
   }
 };
+
+export const clearNotifications = async (req: Request, res: Response) => {
+  try {
+    await Notification.deleteMany({ userId: (req as any).user._id });
+    res.json({ success: true, message: 'All notifications cleared successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

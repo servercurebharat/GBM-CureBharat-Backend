@@ -13,6 +13,7 @@ export interface IActivityLog extends Document {
     lng: number;
     city?: string;
   };
+  sessionDuration?: number; // in seconds, primarily for login sessions
   createdAt: Date;
 }
 
@@ -33,6 +34,7 @@ const ActivityLogSchema: Schema = new Schema({
     lng: { type: Number },
     city: { type: String }
   },
+  sessionDuration: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
 

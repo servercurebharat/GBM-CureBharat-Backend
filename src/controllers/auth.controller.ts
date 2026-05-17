@@ -1,8 +1,12 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import User from '../models/User';
 import Wallet from '../models/Wallet';
+import OTP from '../models/OTP';
+import { sendOTPMail } from '../lib/mailer';
 import { logActivity } from '../lib/activityLogger';
+import { createNotification } from './notification.controller';
 // EPin import removed
 
 // Predefined test accounts: mobile -> password
@@ -26,11 +30,11 @@ export const logout = (req: Request, res: Response) => {
   return res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
 
-// ─── LOGIN (Password-only, no OTP) ───────────────────────────────────────────
+// ─── LOGIN (Password + optional SMTP email OTP verification) ───────────────────
 export const login = async (req: Request, res: Response) => {
   try {
-    const { mobile, password, location } = req.body;
-    console.log(`[AUTH] Login attempt for ${mobile} | Has Location: ${!!location}`);
+    const { mobile, password, location, otp } = req.body;
+    console.log(`[AUTH] Login attempt for ${mobile} | Has Location: ${!!location} | Has OTP: ${!!otp}`);
 
     if (!mobile || !password) {
       return res.status(400).json({ success: false, message: 'Mobile and password are required' });
@@ -45,6 +49,10 @@ export const login = async (req: Request, res: Response) => {
     let isVerified = false;
     const user: any = await User.findOne({ mobile }).lean();
 
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Account not found. Please register first.' });
+    }
+
     // 1. Check predefined test accounts
     const predefinedPassword = PREDEFINED_ACCOUNTS[mobile];
     if (predefinedPassword && predefinedPassword === password) {
@@ -52,10 +60,16 @@ export const login = async (req: Request, res: Response) => {
       console.log(`[AUTH] Predefined account matched for ${mobile}`);
     }
 
-    // 2. Check DB password (plain text for now — upgrade to bcrypt later)
-    if (!isVerified && user && user.password && user.password === password) {
-      isVerified = true;
-      console.log(`[AUTH] DB password matched for ${mobile}`);
+    // 2. Check DB password (supports bcrypt with plain-text fallback)
+    if (!isVerified && user.password) {
+      if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+        isVerified = await bcrypt.compare(password, user.password);
+      } else {
+        isVerified = user.password === password;
+      }
+      if (isVerified) {
+        console.log(`[AUTH] DB password matched for ${mobile}`);
+      }
     }
 
     if (!isVerified) {
@@ -63,12 +77,47 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Invalid mobile number or password' });
     }
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Account not found. Please register first.' });
-    }
-
     if (user.status === 'blocked') {
       return res.status(403).json({ success: false, message: 'Your account has been blocked. Contact support.' });
+    }
+
+    // 3. OTP verification flow (only for users with email, bypassing predefined developer accounts)
+    const isPredefined = !!predefinedPassword;
+    if (!isPredefined && user.email) {
+      if (!otp) {
+        // Generate and store OTP
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+
+        await OTP.findOneAndUpdate(
+          { email: user.email },
+          { otp: code, expiresAt },
+          { upsert: true, new: true }
+        );
+
+        // Send email
+        const isSent = await sendOTPMail(user.email, code);
+        if (!isSent) {
+          console.warn(`\n[OTP FALLBACK] SMTP transmission failed for ${user.email}.\n[OTP FALLBACK] DEV OTP CODE GENERATED: ${code}\n[OTP FALLBACK] Please type this code in the frontend login form to proceed.\n`);
+        } else {
+          console.log(`[AUTH] 2-step verification code sent to: ${user.email}`);
+        }
+        return res.status(200).json({
+          success: true,
+          requiresOTP: true,
+          email: user.email,
+          message: 'A 6-digit verification code has been sent to your registered email address.'
+        });
+      } else {
+        // Verify submitted OTP
+        const record = await OTP.findOne({ email: user.email, otp });
+        if (!record) {
+          return res.status(400).json({ success: false, message: 'Invalid or expired verification code' });
+        }
+        // Delete verified OTP so it cannot be reused
+        await OTP.deleteOne({ _id: record._id });
+        console.log(`[AUTH] 2-step OTP verified successfully for: ${user.email}`);
+      }
     }
 
     // Update login audit info
@@ -117,12 +166,71 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-// ─── Kept for backward compat — now just delegates to login ─────────────────
 export const sendOTP = async (req: Request, res: Response) => {
-  return res.status(410).json({ success: false, message: 'OTP system is deprecated. Use /auth/login instead.' });
+  try {
+    const { email } = req.body;
+    console.log(`[AUTH] Requested OTP for: ${email}`);
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+
+    // Generate a secure 6-digit random code
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+
+    // Store in Mongoose database
+    await OTP.findOneAndUpdate(
+      { email },
+      { otp, expiresAt },
+      { upsert: true, new: true }
+    );
+
+    // Send the email via SMTP Nodemailer
+    const isSent = await sendOTPMail(email, otp);
+
+    if (!isSent) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please try again later.' });
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'OTP sent successfully to your email.' 
+    });
+  } catch (error: any) {
+    console.error('[AUTH] sendOTP error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
 };
 
-export const verifyOTP = login; // alias
+export const verifyOTP = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    console.log(`[AUTH] Verifying OTP for: ${email}`);
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+    }
+
+    // Find in OTP collection
+    const record = await OTP.findOne({ email, otp });
+
+    if (!record) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    // Delete verified OTP record so it cannot be reused
+    await OTP.deleteOne({ _id: record._id });
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'OTP verified successfully.' 
+    });
+  } catch (error: any) {
+    console.error('[AUTH] verifyOTP error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
 
 export const register = async (req: any, res: Response) => {
   try {
@@ -196,6 +304,22 @@ export const register = async (req: any, res: Response) => {
 
     await newUser.save();
     await Wallet.create({ user: newUser._id });
+
+    // Trigger in-app notification to all admin users about the new recruitment/registration!
+    try {
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await createNotification(
+          admin._id.toString(),
+          'New Member Recruited',
+          `A new member, ${newUser.name} (${newUser.memberId}), has registered in ${newUser.state}. Referrer: ${referrer ? `${referrer.name} (${referrer.memberId})` : 'None (Direct Admin)'}.`,
+          'info',
+          `/admin/members`
+        );
+      }
+    } catch (notifErr) {
+      console.error('[AUTH] Admin registration notification failed:', notifErr);
+    }
 
     // E-Pin logic removed (Online Only)
 

@@ -5,7 +5,7 @@ export interface ILedgerEntry {
   amount: number;
   type: 'direct' | 'override' | 'leadership' | 'withdrawal' | 'tds_deduction' | 'manual';
   description: string;
-  status: 'provisional' | 'final';
+  status: 'provisional' | 'final' | 'held';
   date: Date;
   sourceUserId?: mongoose.Types.ObjectId;
   saleId?: mongoose.Types.ObjectId;
@@ -31,7 +31,7 @@ const walletSchema = new Schema<IWallet>({
     amount: Number,
     type: { type: String, enum: ['direct', 'override', 'leadership', 'withdrawal', 'tds_deduction', 'manual'] },
     description: String,
-    status: { type: String, enum: ['provisional', 'final'], default: 'provisional' },
+    status: { type: String, enum: ['provisional', 'final', 'held'], default: 'provisional' },
     date: { type: Date, default: Date.now },
     sourceUserId: { type: Schema.Types.ObjectId, ref: 'User' },
     saleId: { type: Schema.Types.ObjectId, ref: 'Sale' },

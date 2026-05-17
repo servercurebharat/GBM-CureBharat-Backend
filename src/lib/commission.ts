@@ -70,16 +70,65 @@ export async function processCommission(saleId: string): Promise<void> {
   let hcmIncome = 0;
   if (hcm) {
     sale.hcmId = hcm._id as Types.ObjectId;
-    hcmIncome = Math.round(directIncome * hcmRate);
-    await addToWallet({
-      userId: hcm._id as Types.ObjectId,
-      amount: hcmIncome,
-      type: 'override',
-      description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
-      sourceUserId: seller._id as Types.ObjectId,
-      status: 'provisional',
-      cycleMonth,
-    });
+
+    // Check if this is an HCM recruiting another HCM breakaway
+    let isBreakaway = false;
+    if (seller.rank === 'HCM' && hcm._id.toString() !== seller._id.toString()) {
+      isBreakaway = true;
+    } else {
+      let curr: any = seller;
+      while (curr && curr.referrerId) {
+        if (curr.referrerId.toString() === hcm._id.toString()) {
+          if (curr.rank === 'HCM') {
+            isBreakaway = true;
+          }
+          break;
+        }
+        const refId = curr.referrerId;
+        curr = await User.findById(refId);
+      }
+    }
+
+    if (isBreakaway) {
+      console.log(`[Commission] ⚖️ Breakaway Split applied! HCM ${hcm.memberId} receives 20% override immediately, 20% held.`);
+      
+      // Split the 40% override: 20% immediate, 20% held
+      const splitIncome = Math.round(directIncome * 0.20);
+      hcmIncome = splitIncome;
+
+      // 1. Pay the 20% immediate
+      await addToWallet({
+        userId: hcm._id as Types.ObjectId,
+        amount: splitIncome,
+        type: 'override',
+        description: `HCM breakaway 20% immediate override from ${seller.memberId} - Policy ${sale.policyId}`,
+        sourceUserId: seller._id as Types.ObjectId,
+        status: 'provisional',
+        cycleMonth,
+      });
+
+      // 2. Hold the remaining 20% to be released at HBA promotion
+      await addToWallet({
+        userId: hcm._id as Types.ObjectId,
+        amount: splitIncome,
+        type: 'override',
+        description: `HCM breakaway 20% held override from ${seller.memberId} - Policy ${sale.policyId} (Releases at HBA Rank)`,
+        sourceUserId: seller._id as Types.ObjectId,
+        status: 'held',
+        cycleMonth,
+      });
+    } else {
+      hcmIncome = Math.round(directIncome * hcmRate);
+      await addToWallet({
+        userId: hcm._id as Types.ObjectId,
+        amount: hcmIncome,
+        type: 'override',
+        description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
+        sourceUserId: seller._id as Types.ObjectId,
+        status: 'provisional',
+        cycleMonth,
+      });
+    }
   }
 
   // ── 3. HBA OVERRIDE ─────────────────────────────────────────────────────
@@ -161,7 +210,7 @@ async function addToWallet(entry: {
   type: 'direct' | 'override' | 'leadership' | 'withdrawal' | 'tds_deduction';
   description: string;
   sourceUserId: Types.ObjectId;
-  status: 'provisional' | 'final';
+  status: 'provisional' | 'final' | 'held';
   cycleMonth: string;
 }): Promise<void> {
   let wallet = await Wallet.findOne({ user: entry.userId });
@@ -178,10 +227,11 @@ async function addToWallet(entry: {
 
   if (entry.status === 'provisional') {
     wallet.provisionalBalance += entry.amount;
-  } else {
+    wallet.totalEarned += entry.amount;
+  } else if (entry.status === 'final') {
     wallet.finalBalance += entry.amount;
+    wallet.totalEarned += entry.amount;
   }
-  wallet.totalEarned += entry.amount;
   await wallet.save();
 }
 

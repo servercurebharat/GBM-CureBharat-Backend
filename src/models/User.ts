@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
   name: string;
@@ -12,6 +13,27 @@ export interface IUser extends Document {
   state: string;
   status: 'active' | 'inactive' | 'blocked';
   kycStatus: 'pending' | 'approved' | 'rejected' | 'not_submitted';
+  gender?: 'male' | 'female' | 'other';
+  dob?: Date;
+  profileImage?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    zipCode?: string;
+  };
+  bankDetails?: {
+    accountHolderName?: string;
+    accountNumber?: string;
+    bankName?: string;
+    ifscCode?: string;
+    branchName?: string;
+    verificationStatus?: 'pending' | 'verified' | 'rejected';
+  };
+  nomineeDetails?: {
+    name?: string;
+    relation?: string;
+    mobile?: string;
+  };
   kycDocuments?: {
     aadhaarNumber?: string;
     aadhaarFrontUrl?: string;
@@ -32,6 +54,7 @@ export interface IUser extends Document {
   joiningDate: Date;
   lastLoginIP?: string;
   lastLoginAt?: Date;
+  totalTimeSpent: number; // in seconds
   createdAt: Date;
 }
 
@@ -47,6 +70,27 @@ const userSchema = new Schema<IUser>({
   state: { type: String, required: true },
   status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
   kycStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'not_submitted'], default: 'not_submitted' },
+  gender: { type: String, enum: ['male', 'female', 'other'] },
+  dob: { type: Date },
+  profileImage: { type: String },
+  address: {
+    street: String,
+    city: String,
+    zipCode: String,
+  },
+  bankDetails: {
+    accountHolderName: String,
+    accountNumber: String,
+    bankName: String,
+    ifscCode: String,
+    branchName: String,
+    verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+  },
+  nomineeDetails: {
+    name: String,
+    relation: String,
+    mobile: String,
+  },
   kycDocuments: {
     aadhaarNumber: String,
     aadhaarFrontUrl: String,
@@ -67,10 +111,27 @@ const userSchema = new Schema<IUser>({
   joiningDate: { type: Date, default: Date.now },
   lastLoginIP: { type: String },
   lastLoginAt: { type: Date },
+  totalTimeSpent: { type: Number, default: 0 },
 }, { timestamps: true });
 
 // Indexes
 userSchema.index({ role: 1 });
 userSchema.index({ referrerId: 1 });
+
+// Pre-save hook to hash password automatically
+userSchema.pre('save', async function (next) {
+  const user = this as any;
+  if (!user.isModified('password')) return next();
+
+  if (user.password && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+    try {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(user.password, salt);
+    } catch (err: any) {
+      return next(err);
+    }
+  }
+  next();
+});
 
 export default mongoose.models.User || mongoose.model<IUser>('User', userSchema);
