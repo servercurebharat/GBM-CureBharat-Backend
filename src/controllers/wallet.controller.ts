@@ -18,7 +18,7 @@ export const getMyWallet = async (req: any, res: Response) => {
     }
 
     // Sort ledger by date descending
-    const sortedLedger = wallet.ledger.sort((a: any, b: any) => b.date - a.date);
+    const sortedLedger = (wallet.ledger || []).sort((a: any, b: any) => b.date - a.date);
 
     // Calculate breakdown
     const breakdown = {
@@ -27,7 +27,7 @@ export const getMyWallet = async (req: any, res: Response) => {
       leadership: 0
     };
 
-    wallet.ledger.forEach((entry: any) => {
+    (wallet.ledger || []).forEach((entry: any) => {
       if (entry.status === 'provisional' || entry.status === 'final') {
         if (entry.type === 'direct') breakdown.direct += entry.amount;
         if (entry.type === 'override') breakdown.override += entry.amount;
