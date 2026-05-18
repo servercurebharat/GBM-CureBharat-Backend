@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User';
 import Wallet from '../models/Wallet';
 import OTP from '../models/OTP';
-import { sendOTPMail } from '../lib/mailer';
+import { sendOTPMail, sendWelcomeMail } from '../lib/mailer';
 import { logActivity } from '../lib/activityLogger';
 import { createNotification } from './notification.controller';
 // EPin import removed
@@ -304,6 +304,12 @@ export const register = async (req: any, res: Response) => {
 
     await newUser.save();
     await Wallet.create({ user: newUser._id });
+
+    // Send Welcome Email asynchronously
+    if (newUser.email) {
+      sendWelcomeMail(newUser.email, newUser.name, newUser.memberId, newUser.role)
+        .catch(mailErr => console.error('[AUTH] Welcome email async failed:', mailErr));
+    }
 
     // Trigger in-app notification to all admin users about the new recruitment/registration!
     try {

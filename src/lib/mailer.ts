@@ -315,3 +315,89 @@ export const sendPayoutSettlementMail = async (
     return false;
   }
 };
+
+export const sendWelcomeMail = async (
+  toEmail: string,
+  userName: string,
+  memberId: string,
+  role: string
+): Promise<boolean> => {
+  try {
+    const roleLabels: Record<string, string> = {
+      sh: 'State Head (SH)',
+      hcb: 'HCB',
+      hba: 'HBA Associate',
+      hcm: 'HCM Manager',
+      hcc: 'Consultant (HCC)'
+    };
+    const roleLabel = roleLabels[role.toLowerCase()] || role.toUpperCase();
+
+    const mailOptions = {
+      from: `"CureBharat Welcome" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      to: toEmail,
+      subject: `🎉 Welcome to CureBharat Wellness - Enrollment Confirmed!`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="cid:logo" alt="CureBharat Logo" style="max-width: 200px; height: auto;" />
+            <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 10px;">Partner Onboarding Node</p>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin-bottom: 25px;" />
+          
+          <p style="font-size: 15px; color: #1e293b; line-height: 1.6; margin-bottom: 20px;">
+            Dear <strong>${userName}</strong>,
+          </p>
+          
+          <p style="font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 25px;">
+            Congratulations! Your enrollment as a <strong>${roleLabel}</strong> with CureBharat Wellness has been successfully confirmed.
+          </p>
+
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+            <h4 style="margin: 0 0 15px 0; color: #0f172a; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Your Partner Credentials</h4>
+            <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600; width: 140px; color: #94a3b8;">Partner Name:</td>
+                <td style="padding: 6px 0; font-weight: 700; color: #0f172a;">${userName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600; color: #94a3b8;">Member ID:</td>
+                <td style="padding: 6px 0; font-family: monospace; font-weight: bold; color: #10b981;">${memberId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-weight: 600; color: #94a3b8;">Partner Rank:</td>
+                <td style="padding: 6px 0; font-weight: 700; color: #334155;">${roleLabel}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 15px; margin-bottom: 30px; color: #1e3a8a; font-size: 13px; line-height: 1.5;">
+            🛡️ <strong>CRITICAL NEXT STEP:</strong><br />
+            To complete your enrollment and start building your partner network, please log in to your dashboard and **verify your documents (KYC)**. Once verified, you can immediately begin enrolling partners and tracking overrides!
+          </div>
+
+          <div style="text-align: center; margin-bottom: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" style="background-color: #10b981; color: #ffffff; padding: 14px 28px; font-size: 13px; font-weight: 800; text-decoration: none; border-radius: 10px; display: inline-block; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2); text-transform: uppercase; letter-spacing: 0.05em;">Log In & Verify Documents</a>
+          </div>
+          
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin-top: 30px;" />
+          <p style="color: #94a3b8; font-size: 11px; text-align: center; line-height: 1.5; margin-top: 20px;">
+            If you did not initiate this enrollment, please contact operations@curebharat.com immediately.<br />
+            © ${new Date().getFullYear()} CureBharat Wellness Private Limited. All rights reserved.
+          </p>
+        </div>
+      `,
+      attachments: [{
+        filename: 'logo.png',
+        path: 'C:\\Users\\harsh\\Documents\\curebharat-mlm\\MLML_Frontend\\public\\logo.png',
+        cid: 'logo'
+      }]
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[MAIL] Sent Welcome Email to ${toEmail} | MessageID: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error('[MAIL] sendWelcomeMail Error:', error);
+    return false;
+  }
+};
