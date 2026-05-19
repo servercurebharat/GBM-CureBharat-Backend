@@ -325,10 +325,9 @@ export const sendWelcomeMail = async (
   try {
     const roleLabels: Record<string, string> = {
       sh: 'State Head (SH)',
-      hcb: 'HCB',
-      hba: 'HBA Associate',
-      hcm: 'HCM Manager',
-      hcc: 'Consultant (HCC)'
+      hba: 'Health Business Associate (HBA)',
+      hcm: 'Health Care Manager (HCM)',
+      hcc: 'Health Care Consultant (HCC)'
     };
     const roleLabel = roleLabels[role.toLowerCase()] || role.toUpperCase();
 

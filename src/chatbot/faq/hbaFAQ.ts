@@ -1,0 +1,365 @@
+import { FAQ } from '../types/chatbot.types';
+
+type HBAChatbotFAQItem = FAQ;
+
+export const hbaFAQ: HBAChatbotFAQItem[] = [
+  {
+    id: 'hba-dashboard-overview',
+    category: 'Dashboard & Analytics',
+    question: 'How do I read the HBA dashboard overview?',
+    answer:
+      'Use the HBA dashboard as your daily business operations summary. Start with revenue trend, active team count, override income movement, promotion readiness, and recent sales activity.',
+    keywords: ['dashboard overview', 'hba dashboard', 'summary', 'overview', 'metrics'],
+    relatedPrompts: ['How do I track revenue trends?', 'How do I monitor HCM productivity?'],
+  },
+
+  {
+    id: 'hba-dashboard-mismatch',
+    category: 'Support & Troubleshooting',
+    question: 'Why does dashboard data look incorrect or delayed?',
+    answer:
+      'First compare dashboard cards with the source modules. Check sales totals in My Sales, branch counts in Team Management, wallet movement in Finance Hub, and inventory updates in Bulk E-Pins or Inventory Control.',
+    keywords: ['dashboard mismatch', 'wrong dashboard', 'delayed metrics', 'incorrect dashboard', 'reporting lag'],
+    relatedPrompts: ['Why do revenue reports look incorrect?', 'Why is my wallet balance delayed?'],
+  },
+
+  {
+    id: 'hba-revenue-trends',
+    category: 'Revenue Analytics',
+    question: 'How do I track revenue trends?',
+    answer:
+      'Track revenue trends by comparing daily movement, MTD totals, plan-wise sales mix, and branch contribution under your HCM lines.',
+    keywords: ['revenue trends', 'revenue analytics', 'sales trend', 'mtd revenue', 'income trend'],
+    relatedPrompts: ['How do I track policy sales?', 'How do I monitor HCM productivity?'],
+  },
+
+  {
+    id: 'hba-state-contribution',
+    category: 'Revenue Analytics',
+    question: 'How do I review state contribution from my business network?',
+    answer:
+      'Use revenue and team views together to understand how your branch contributes to wider regional performance.',
+    keywords: ['state contribution', 'regional contribution', 'branch revenue', 'state revenue', 'network contribution'],
+    relatedPrompts: ['How do I monitor HCM productivity?', 'How do I inspect genealogy?'],
+  },
+
+  {
+    id: 'hba-promotion-readiness',
+    category: 'Rank Progress',
+    question: 'How do I improve promotion readiness?',
+    answer:
+      'Promotion readiness depends on both personal business performance and the quality of team structure beneath you.',
+    keywords: ['promotion readiness', 'rank readiness', 'promotion', 'next level', 'growth readiness'],
+    relatedPrompts: ['Why is promotion delayed?', 'How do I monitor HCM productivity?'],
+  },
+
+  {
+    id: 'hba-team-management-usage',
+    category: 'Team Management',
+    question: 'How do I use team management effectively?',
+    answer:
+      'Use Team Management to monitor direct HCMs, branch activity, inactive members, and sales contribution across your network.',
+    keywords: ['team management', 'team module', 'branch review', 'downline management', 'role filter'],
+    relatedPrompts: ['How do I monitor HCM productivity?', 'How do I inspect genealogy?'],
+  },
+
+  {
+    id: 'hba-hcm-productivity',
+    category: 'Team Management',
+    question: 'How do I monitor HCM productivity?',
+    answer:
+      'Monitor HCM productivity by checking direct sales contribution, active team size, branch growth, and whether each HCM is producing working HCC activity.',
+    keywords: ['hcm productivity', 'monitor hcm', 'hcm performance', 'branch productivity', 'team output'],
+    relatedPrompts: ['How do I inspect team growth?', 'How do I track override income?'],
+  },
+
+  {
+    id: 'hba-team-growth',
+    category: 'Team Management',
+    question: 'How do I inspect team growth?',
+    answer:
+      'Check team growth through direct recruits, second-line expansion, active branch count, and the ratio of working versus inactive members.',
+    keywords: ['team growth', 'downline growth', 'branch growth', 'network growth', 'team expansion'],
+    relatedPrompts: ['How do I monitor HCM productivity?', 'Why are some HCMs inactive?'],
+  },
+
+  {
+    id: 'hba-inactive-hcms',
+    category: 'Support & Troubleshooting',
+    question: 'Why are some HCMs inactive?',
+    answer:
+      'Inactive HCMs usually indicate low sales activity, weak team support, missed continuation rules, or lack of branch engagement.',
+    keywords: ['inactive hcm', 'hcm inactive', 'branch inactive', 'inactive leader', 'low activity'],
+    relatedPrompts: ['How do I monitor HCM productivity?', 'How do I improve promotion readiness?'],
+  },
+
+  {
+    id: 'hba-network-genealogy',
+    category: 'Network & Genealogy',
+    question: 'How do I inspect genealogy?',
+    answer:
+      'Use Network Management to inspect sponsor placement, branch depth, and the reporting chain under your HCM and HCC structure.',
+    keywords: ['inspect genealogy', 'genealogy', 'network tree', 'hierarchy', 'placement'],
+    relatedPrompts: ['Why is genealogy incorrect?', 'How do upline and downline relationships work?'],
+  },
+
+  {
+    id: 'hba-genealogy-mismatch',
+    category: 'Support & Troubleshooting',
+    question: 'Why is genealogy incorrect?',
+    answer:
+      'Genealogy mismatch usually means the member was registered under the wrong sponsor or the expected referrer is different from the stored one.',
+    keywords: ['wrong genealogy', 'genealogy mismatch', 'wrong sponsor', 'wrong placement', 'tree issue'],
+    relatedPrompts: ['How do I inspect genealogy?', 'Why is a commission missing?'],
+  },
+
+  {
+    id: 'hba-upline-downline',
+    category: 'Network & Genealogy',
+    question: 'How do upline and downline relationships work?',
+    answer:
+      'Upline is the chain of sponsors and qualified leaders above a member. Downline is the branch structure below them.',
+    keywords: ['upline', 'downline', 'sponsor chain', 'hierarchy', 'network relationship'],
+    relatedPrompts: ['How do I inspect genealogy?', 'How do I monitor override income?'],
+  },
+
+  {
+    id: 'hba-financial-tracking-overview',
+    category: 'Financial Tracking',
+    question: 'How do I use financial tracking effectively?',
+    answer:
+      'Use Financial Tracking to review earnings movement, branch-driven commission flow, ledger entries, and settlement status over time.',
+    keywords: ['financial tracking', 'finance tracking', 'earnings tracking', 'income movement', 'ledger review'],
+    relatedPrompts: ['How do I track override income?', 'How do I use the finance hub?'],
+  },
+
+  {
+    id: 'hba-finance-hub',
+    category: 'Finance Hub',
+    question: 'How do I use the finance hub?',
+    answer:
+      'Finance Hub is the main place to review provisional income, final balance, transaction ledger, payout movement, and deduction impact such as TDS.',
+    keywords: ['finance hub', 'wallet', 'ledger', 'earnings', 'tds'],
+    relatedPrompts: ['Why is my wallet balance delayed?', 'How do I monitor override income?'],
+  },
+
+  {
+    id: 'hba-wallet-provisional-final',
+    category: 'Wallet & Payouts',
+    question: 'What is the difference between provisional and final balance?',
+    answer:
+      'Provisional balance contains earnings that have been credited from sales or overrides but are still waiting for settlement.',
+    keywords: ['provisional balance', 'final balance', 'wallet status', 'settled income', 'pending income'],
+    relatedPrompts: ['Why is my wallet balance delayed?', 'Why are payouts delayed?'],
+  },
+
+  {
+    id: 'hba-wallet-delayed',
+    category: 'Support & Troubleshooting',
+    question: 'Why is my wallet balance delayed?',
+    answer:
+      'Wallet delay usually means the related income is still provisional or the sale has not completed the expected commission flow.',
+    keywords: ['wallet delayed', 'delayed wallet', 'balance delayed', 'wallet issue', 'earnings delay'],
+    relatedPrompts: ['What is the difference between provisional and final balance?', 'Why is a commission missing?'],
+  },
+
+  {
+    id: 'hba-wallet-ledger',
+    category: 'Wallet & Payouts',
+    question: 'How do I read the transaction ledger?',
+    answer:
+      'Read the ledger by identifying entry type first, such as direct, override, leadership, payout deduction, or adjustment.',
+    keywords: ['transaction ledger', 'wallet ledger', 'ledger entries', 'income ledger', 'transactions'],
+    relatedPrompts: ['Why is my wallet balance delayed?', 'Why is a commission missing?'],
+  },
+
+  {
+    id: 'hba-payout-delay',
+    category: 'Wallet & Payouts',
+    question: 'Why are payouts delayed?',
+    answer:
+      'Payout delays usually happen because balance is still provisional, KYC is incomplete, or settlement has not completed.',
+    keywords: ['payout delay', 'withdrawal delay', 'payment delay', 'settlement delay', 'finance review'],
+    relatedPrompts: ['How do I use the finance hub?', 'How do KYC verification issues affect payouts?'],
+  },
+
+  {
+    id: 'hba-sales-overview',
+    category: 'Sales Management',
+    question: 'How do I track policy sales?',
+    answer:
+      'Track policy sales using Sales and My Sales together.',
+    keywords: ['policy sales', 'track sales', 'sales tracking', 'policy revenue', 'sales volume'],
+    relatedPrompts: ['How do I create a policy sale?', 'Why is a sales record missing?'],
+  },
+
+  {
+    id: 'hba-new-sale',
+    category: 'Policy Sales',
+    question: 'How do I create a policy sale?',
+    answer:
+      'Use New Sale after confirming the customer or member details, selected plan, and any required supporting information are correct.',
+    keywords: ['create policy sale', 'new sale', 'policy creation', 'sales entry', 'submit sale'],
+    relatedPrompts: ['How do I track policy sales?', 'Why did policy creation fail?'],
+  },
+
+  {
+    id: 'hba-my-sales',
+    category: 'Sales Management',
+    question: 'How do I review my sales?',
+    answer:
+      'Use My Sales to validate recent policy entries, compare plan mix, and spot missing or mislinked sales quickly.',
+    keywords: ['my sales', 'sales history', 'sale list', 'review sales', 'recent policies'],
+    relatedPrompts: ['How do I track policy sales?', 'Why is a sales record missing?'],
+  },
+
+  {
+    id: 'hba-missing-sales',
+    category: 'Support & Troubleshooting',
+    question: 'Why is a sales record missing?',
+    answer:
+      'A sales record may look missing if it was not submitted successfully or has not yet reflected in dashboard summaries.',
+    keywords: ['missing sales', 'sale not found', 'policy missing', 'sales issue', 'record missing'],
+    relatedPrompts: ['How do I review my sales?', 'Why did policy creation fail?'],
+  },
+
+  {
+    id: 'hba-policy-creation-failed',
+    category: 'Support & Troubleshooting',
+    question: 'Why did policy creation fail?',
+    answer:
+      'Policy creation usually fails because of incomplete sale details, invalid plan selection, or E-Pin mismatch.',
+    keywords: ['policy creation failed', 'sale failed', 'policy error', 'sale submission issue', 'new sale failed'],
+    relatedPrompts: ['How do I create a policy sale?', 'Why did an E-Pin fail?'],
+  },
+
+  {
+    id: 'hba-override-income',
+    category: 'Override Income',
+    question: 'How do I monitor override income?',
+    answer:
+      'Monitor override income by tracking branch sales, genealogy depth, and qualifying activity under your HCM structure.',
+    keywords: ['override income', 'override commission', 'upline income', 'branch income', 'downline income'],
+    relatedPrompts: ['Why is a commission missing?', 'How do I inspect genealogy?'],
+  },
+
+  {
+    id: 'hba-missing-commission',
+    category: 'Support & Troubleshooting',
+    question: 'Why is a commission missing?',
+    answer:
+      'Check the issue in this order: confirm the sale exists, verify the plan is commissionable, inspect genealogy placement, and review branch eligibility.',
+    keywords: ['missing commission', 'commission not credited', 'income missing', 'override missing', 'bonus missing'],
+    relatedPrompts: ['How do I monitor override income?', 'Why is genealogy incorrect?'],
+  },
+
+  {
+    id: 'hba-rank-progress',
+    category: 'Rank Progress',
+    question: 'How does rank progression work for HBA?',
+    answer:
+      'Rank progression for HBA depends on personal contribution plus the quality and activity of the network below you.',
+    keywords: ['rank progression', 'hba rank', 'promotion', 'promotion logic', 'rank growth'],
+    relatedPrompts: ['How do I improve promotion readiness?', 'Why is promotion delayed?'],
+  },
+
+  {
+    id: 'hba-promotion-delay',
+    category: 'Support & Troubleshooting',
+    question: 'Why is promotion delayed?',
+    answer:
+      'Promotion delay usually means one or more qualification conditions are incomplete.',
+    keywords: ['promotion delay', 'rank delay', 'promotion not updated', 'rank issue', 'readiness delay'],
+    relatedPrompts: ['How do I improve promotion readiness?', 'How do I monitor HCM productivity?'],
+  },
+
+  {
+    id: 'hba-kyc-verification-usage',
+    category: 'KYC Verification',
+    question: 'How do I use KYC verification properly?',
+    answer:
+      'Use KYC Verification to monitor whether members in your supervised network have uploaded the required documents.',
+    keywords: ['kyc verification', 'kyc', 'document check', 'verification status', 'kyc support'],
+    relatedPrompts: ['How do KYC verification issues affect payouts?', 'How do I escalate member verification issues?'],
+  },
+
+  {
+    id: 'hba-kyc-payout-impact',
+    category: 'KYC Verification',
+    question: 'How do KYC verification issues affect payouts?',
+    answer:
+      'If KYC is pending, incomplete, or rejected, payout processing can be delayed even when earnings are already visible.',
+    keywords: ['kyc payout', 'kyc delay', 'payout blocked', 'verification issue', 'withdrawal block'],
+    relatedPrompts: ['Why are payouts delayed?', 'How do I use KYC verification properly?'],
+  },
+
+  {
+    id: 'hba-kyc-escalation',
+    category: 'KYC Verification',
+    question: 'How do I escalate member verification issues?',
+    answer:
+      'Escalate member verification issues when documents are already submitted but remain unresolved.',
+    keywords: ['escalate verification', 'kyc escalation', 'document issue', 'member verification', 'verification support'],
+    relatedPrompts: ['How do I use KYC verification properly?', 'How do KYC verification issues affect payouts?'],
+  },
+
+  {
+    id: 'hba-inventory-control',
+    category: 'Inventory Control',
+    question: 'How do I use inventory control effectively?',
+    answer:
+      'Use Inventory Control to track available activation inventory, issued items, used stock, and distribution patterns.',
+    keywords: ['inventory control', 'inventory', 'stock', 'pin inventory', 'usage tracking'],
+    relatedPrompts: ['How do bulk E-Pins work?', 'Why did an E-Pin fail?'],
+  },
+
+  {
+    id: 'hba-bulk-epins',
+    category: 'E-Pin Management',
+    question: 'How do bulk E-Pins work?',
+    answer:
+      'Bulk E-Pins allow you to manage and distribute multiple plan-linked activation codes across your supervised network.',
+    keywords: ['bulk epins', 'bulk pins', 'epin management', 'activation codes', 'pin distribution'],
+    relatedPrompts: ['How do I assign E-Pins to my team?', 'Why did an E-Pin fail?'],
+  },
+
+  {
+    id: 'hba-assign-epins',
+    category: 'E-Pin Management',
+    question: 'How do I assign E-Pins to my team?',
+    answer:
+      'Assign E-Pins only after confirming the target member, branch, and intended plan value.',
+    keywords: ['assign epin', 'assign pins', 'pin transfer', 'team pin allocation', 'epin distribution'],
+    relatedPrompts: ['How do bulk E-Pins work?', 'Why did an E-Pin fail?'],
+  },
+
+  {
+    id: 'hba-epin-failed',
+    category: 'Support & Troubleshooting',
+    question: 'Why did an E-Pin fail?',
+    answer:
+      'An E-Pin usually fails because it is already used, assigned to another member, linked to a different plan value, blocked, or entered incorrectly.',
+    keywords: ['epin failed', 'invalid pin', 'activation failed', 'pin issue', 'epin error'],
+    relatedPrompts: ['How do I assign E-Pins to my team?', 'How do I use inventory control effectively?'],
+  },
+
+  {
+    id: 'hba-used-epins',
+    category: 'E-Pin Management',
+    question: 'How do I track used E-Pins?',
+    answer:
+      'Track used E-Pins by checking status, linked plan, current owner, used-by member, and usage date.',
+    keywords: ['used epin', 'track pin', 'pin status', 'used pins', 'epin history'],
+    relatedPrompts: ['Why did an E-Pin fail?', 'How do bulk E-Pins work?'],
+  },
+
+  {
+    id: 'hba-revenue-report-incorrect',
+    category: 'Support & Troubleshooting',
+    question: 'Why do revenue reports look incorrect?',
+    answer:
+      'Revenue reports usually look incorrect because the comparison mixes gross sales, override income, provisional earnings, and final settled balance.',
+    keywords: ['incorrect revenue', 'wrong revenue report', 'report mismatch', 'sales report issue', 'financial mismatch'],
+    relatedPrompts: ['How do I track revenue trends?', 'Why does dashboard data look incorrect or delayed?'],
+  },
+];

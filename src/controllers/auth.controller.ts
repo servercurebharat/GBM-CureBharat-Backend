@@ -241,7 +241,11 @@ export const register = async (req: any, res: Response) => {
       return res.status(400).json({ success: false, message: 'Name and mobile are required' });
     }
 
-    const requesterRole = requester?.role?.toLowerCase() || 'public';
+    let requesterRole = requester?.role?.toLowerCase() || 'public';
+    // Normalize hcb -> hba for database compatibility
+    if (requesterRole === 'hcb') {
+      requesterRole = 'hba';
+    }
 
     // Define Allowed Target Roles
     const permissions: Record<string, string[]> = {
@@ -257,9 +261,14 @@ export const register = async (req: any, res: Response) => {
 
     // If requester is admin, they can set any role, otherwise check permissions
     let roleToAssign = targetRole?.toLowerCase() || 'hcc';
+    // Normalize hcb -> hba for database compatibility
+    if (roleToAssign === 'hcb') {
+      roleToAssign = 'hba';
+    }
     
     if (requesterRole !== 'admin' && !allowedRoles.includes(roleToAssign)) {
-      return res.status(403).json({ success: false, message: `As a ${requesterRole.toUpperCase()}, you are not permitted to register a ${roleToAssign.toUpperCase()}` });
+      const displayRole = roleToAssign.toUpperCase();
+      return res.status(403).json({ success: false, message: `As a ${requesterRole.toUpperCase()}, you are not permitted to register a ${displayRole}` });
     }
 
     const existingUser = await User.findOne({ mobile });

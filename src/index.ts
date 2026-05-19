@@ -20,6 +20,8 @@ import dashboardRoutes from './routes/dashboard.routes';
 import publicRoutes from './routes/public.routes';
 import notificationRoutes from './routes/notification.routes';
 import activityRoutes from './routes/activity.routes';
+import chatbotRoutes from './chatbot/routes/chatbot.routes';
+import complaintRoutes from './routes/complaint.routes';
 
 // Logic & Cron
 import { scheduleMaintenanceCrons } from './lib/payoutCycle';
@@ -122,6 +124,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/public', publicRoutes); // No auth — public Razorpay payment routes
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/complaints', complaintRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

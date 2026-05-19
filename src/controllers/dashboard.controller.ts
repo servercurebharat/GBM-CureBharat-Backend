@@ -156,24 +156,30 @@ export const getTopLeaders = async (req: any, res: Response) => {
     const role = req.user.role;
 
     const { role: filterRole } = req.query;
+    let filterRoleNormalized = filterRole ? (filterRole as string).toLowerCase() : undefined;
+    if (filterRoleNormalized === 'hcb') {
+      filterRoleNormalized = 'hba';
+    }
+
     let targetRole = '';
     let query: any = {};
 
     switch (role) {
       case 'admin':
-        targetRole = filterRole ? (filterRole as string) : 'sh';
+        targetRole = filterRoleNormalized ? filterRoleNormalized : 'sh';
         query = { role: targetRole };
         break;
       case 'sh':
-        targetRole = filterRole ? (filterRole as string) : 'hba';
+        targetRole = filterRoleNormalized ? filterRoleNormalized : 'hba';
         query = { role: targetRole, referrerId: userId };
         break;
       case 'hba':
-        targetRole = filterRole ? (filterRole as string) : 'hcm';
+      case 'hcb':
+        targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcm';
         query = { role: targetRole, referrerId: userId };
         break;
       case 'hcm':
-        targetRole = filterRole ? (filterRole as string) : 'hcc';
+        targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcc';
         query = { role: targetRole, referrerId: userId };
         break;
       case 'hcc':
