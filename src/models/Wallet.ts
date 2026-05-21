@@ -18,6 +18,8 @@ export interface IWallet extends Document {
   finalBalance: number;
   totalEarned: number;
   totalWithdrawn: number;
+  frozen: boolean;
+  frozenReason: string;
   ledger: ILedgerEntry[];
 }
 
@@ -27,6 +29,8 @@ const walletSchema = new Schema<IWallet>({
   finalBalance: { type: Number, default: 0 },
   totalEarned: { type: Number, default: 0 },
   totalWithdrawn: { type: Number, default: 0 },
+  frozen: { type: Boolean, default: false },
+  frozenReason: { type: String, default: '' },
   ledger: [{
     amount: Number,
     type: { type: String, enum: ['direct', 'override', 'leadership', 'withdrawal', 'tds_deduction', 'manual'] },

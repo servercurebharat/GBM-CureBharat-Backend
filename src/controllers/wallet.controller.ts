@@ -3,6 +3,7 @@ import Wallet from '../models/Wallet';
 import User from '../models/User';
 import Withdrawal from '../models/Withdrawal';
 import Sale from '../models/Sale';
+import ActivityLog from '../models/ActivityLog';
 import { runPayoutCycle } from '../lib/payoutCycle';
 import crypto from 'crypto';
 import { createNotification } from './notification.controller';
@@ -87,7 +88,13 @@ export const requestWithdrawal = async (req: any, res: Response) => {
     }
 
     const wallet = await Wallet.findOne({ user: req.user._id });
-    if (!wallet || wallet.finalBalance < amount) {
+    if (!wallet) {
+      return res.status(404).json({ success: false, message: 'Wallet not found' });
+    }
+    if (wallet.frozen) {
+      return res.status(403).json({ success: false, message: 'Your wallet has been frozen. Please contact support.' });
+    }
+    if (wallet.finalBalance < amount) {
       return res.status(400).json({ success: false, message: 'Insufficient final balance' });
     }
 
@@ -205,8 +212,13 @@ export const getAllProvisional = async (req: any, res: Response) => {
       return res.status(403).json({ success: false, message: 'Admin access required' });
     }
 
-    // Find all wallets with provisional balance > 0
-    const wallets = await Wallet.find({ provisionalBalance: { $gt: 0 } })
+    // Find all wallets with provisional balance > 0 OR that are frozen
+    const wallets = await Wallet.find({
+      $or: [
+        { provisionalBalance: { $gt: 0 } },
+        { frozen: true }
+      ]
+    })
       .populate({
         path: 'user',
         select: 'name memberId role rank kycDocuments.panNumber kycStatus'
@@ -303,6 +315,174 @@ export const getAllTransactions = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('[Wallet] getAllTransactions Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+export const getAllWithdrawalRequests = async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { status = 'pending' } = req.query;
+
+    const filter: any = {};
+    if (status && status !== 'all') filter.status = status;
+
+    const withdrawals = await Withdrawal.find(filter)
+      .populate('user', 'name memberId role kycStatus state')
+      .sort({ requestedAt: -1 })
+      .lean();
+
+    return res.status(200).json({ success: true, data: withdrawals });
+  } catch (error: any) {
+    console.error('[Wallet] getAllWithdrawalRequests Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const updateWithdrawalStatus = async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { action, remarks } = req.body; // action: 'approve' | 'reject' | 'freeze'
+
+    const withdrawal = await Withdrawal.findById(id).populate('user', 'name memberId _id');
+    if (!withdrawal) {
+      return res.status(404).json({ success: false, message: 'Withdrawal request not found' });
+    }
+
+    if (withdrawal.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Request is no longer pending' });
+    }
+
+    if (action === 'approve') {
+      withdrawal.status = 'success';
+      (withdrawal as any).processedAt = new Date();
+      (withdrawal as any).remarks = remarks || 'Approved by admin';
+      await withdrawal.save();
+
+      // Notify user
+      await createNotification(
+        (withdrawal.user as any)._id.toString(),
+        'Payout Approved',
+        `Your withdrawal request ${withdrawal.requestId} of ₹${(withdrawal.netAmount / 100).toFixed(2)} (after TDS) has been approved and will be disbursed shortly.`,
+        'success',
+        '/finance'
+      );
+
+    } else if (action === 'reject') {
+      withdrawal.status = 'failed';
+      (withdrawal as any).processedAt = new Date();
+      (withdrawal as any).remarks = remarks || 'Rejected by admin';
+      await withdrawal.save();
+
+      // Refund the amount back to wallet
+      const wallet = await Wallet.findOne({ user: (withdrawal.user as any)._id });
+      if (wallet) {
+        wallet.finalBalance += withdrawal.grossAmount;
+        wallet.totalWithdrawn -= withdrawal.grossAmount;
+        wallet.ledger.push({
+          amount: withdrawal.grossAmount,
+          type: 'withdrawal',
+          description: `Refund: Withdrawal ${withdrawal.requestId} rejected - ${remarks || 'Admin action'}`,
+          status: 'final',
+          date: new Date(),
+          cycleMonth: ''
+        });
+        await wallet.save();
+      }
+
+      await createNotification(
+        (withdrawal.user as any)._id.toString(),
+        'Payout Rejected',
+        `Your withdrawal request ${withdrawal.requestId} has been rejected. Reason: ${remarks || 'Admin decision'}. Amount has been refunded to your wallet.`,
+        'error',
+        '/finance'
+      );
+
+    } else if (action === 'freeze') {
+      // Freeze the user's wallet
+      const wallet = await Wallet.findOne({ user: (withdrawal.user as any)._id });
+      if (wallet) {
+        (wallet as any).frozen = true;
+        (wallet as any).frozenReason = remarks || 'Frozen by admin pending investigation';
+        await wallet.save();
+      }
+      withdrawal.status = 'failed';
+      (withdrawal as any).remarks = `Account frozen: ${remarks || 'Admin action'}`;
+      await withdrawal.save();
+
+      await createNotification(
+        (withdrawal.user as any)._id.toString(),
+        'Account Action Required',
+        `Your wallet has been frozen pending review. Please contact support. Request ${withdrawal.requestId} has been placed on hold.`,
+        'warning',
+        '/support'
+      );
+
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid action. Use approve, reject, or freeze' });
+    }
+
+    return res.status(200).json({ success: true, message: `Withdrawal ${action}d successfully` });
+  } catch (error: any) {
+    console.error('[Wallet] updateWithdrawalStatus Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const unfreezeWallet = async (req: any, res: Response) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { id } = req.params; // wallet ID
+
+    const wallet = await Wallet.findById(id).populate('user', 'name memberId _id');
+    if (!wallet) {
+      return res.status(404).json({ success: false, message: 'Wallet not found' });
+    }
+
+    wallet.frozen = false;
+    wallet.frozenReason = '';
+    await wallet.save();
+
+    // Log action
+    try {
+      await ActivityLog.create({
+        userId: req.user._id,
+        userName: req.user.name,
+        userRole: req.user.role,
+        action: 'WALLET_UNFROZEN',
+        category: 'wallet',
+        details: `Unfrozen wallet for ${(wallet.user as any)?.name} (${(wallet.user as any)?.memberId})`,
+        ipAddress: req.ip
+      });
+    } catch (logErr) {
+      console.error('[Wallet] unfreezeWallet Log Error:', logErr);
+    }
+
+    // Notify user
+    try {
+      await createNotification(
+        (wallet.user as any)._id.toString(),
+        'Account Unfrozen',
+        `Your wallet has been unfrozen. You can now request payouts.`,
+        'success',
+        '/finance'
+      );
+    } catch (notifErr) {
+      console.error('[Wallet] unfreezeWallet Notification Error:', notifErr);
+    }
+
+    return res.status(200).json({ success: true, message: 'Wallet unfrozen successfully' });
+  } catch (error: any) {
+    console.error('[Wallet] unfreezeWallet Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
