@@ -149,7 +149,7 @@ export const createSubscription = async (req: Request, res: Response) => {
       success: true,
       data: {
         subscriptionId,
-        authLink:   subData.data?.authorization?.url || subData.authorization_link,
+        authLink:   subData.authorization_details?.authorization_link || subData.authorization_link || subData.data?.authorization?.url,
         policyId,
         amount:     totalRupees,
         planName:   plan.name,
