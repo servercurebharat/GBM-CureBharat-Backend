@@ -108,7 +108,9 @@ export const createSubscription = async (req: Request, res: Response) => {
     // Step 3 — Create the Cashfree Subscription (mandate)
     const subPayload = {
       subscription_id:          subscriptionId,
-      plan_id:                  cfPlanId,
+      plan_details: {
+        plan_id: cfPlanId,
+      },
       customer_details: {
         customer_name:  customerName,
         customer_phone: customerMobile,
