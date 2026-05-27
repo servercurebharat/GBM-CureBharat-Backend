@@ -22,44 +22,6 @@ const CF_HEADERS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPER — Get or create a Cashfree Plan for a CureBharat Plan
-// Plan ID format: cb_plan_<mongoId> — deterministic so we never duplicate
-// ─────────────────────────────────────────────────────────────────────────────
-async function getOrCreateCashfreePlan(plan: any): Promise<string> {
-  const cfPlanId = `cb_plan_${plan._id.toString()}_v2`;
-
-  const totalPaise  = Math.round(plan.price + (plan.price * (plan.gstPercent || 18)) / 100);
-  const totalRupees = totalPaise / 100;
-
-  // Try fetching existing plan first
-  try {
-    await axios.get(`${CF_BASE_URL}/pg/plans/${cfPlanId}`, { headers: CF_HEADERS });
-    console.log(`[Subscription] Reusing existing Cashfree plan: ${cfPlanId}`);
-    return cfPlanId;
-  } catch {
-    // Plan does not exist — create it
-  }
-
-  // Create new Cashfree plan (PERIODIC, YEAR interval)
-  const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
-  
-  await axios.post(`${CF_BASE_URL}/pg/plans`, {
-    plan_id:            cfPlanId,
-    plan_name:          `CureBharat ${safePlanName} Yearly`,
-    plan_type:          'PERIODIC',
-    plan_currency:      'INR',
-    plan_recurring_amount: totalRupees,
-    plan_max_amount:    totalRupees,
-    plan_interval_type: 'YEAR',
-    plan_intervals:     1,
-    plan_note:          `Annual renewal for ${plan.name}`,
-  }, { headers: { ...CF_HEADERS, 'x-api-version': '2025-01-01' } });
-
-  console.log(`[Subscription] Created new Cashfree plan: ${cfPlanId} for ₹${totalRupees}/year`);
-  return cfPlanId;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/subscriptions/create
 // Creates a Cashfree Subscription mandate and returns authLink for redirect.
 // The first charge (plan amount) fires when the customer authorizes the mandate.
@@ -98,18 +60,28 @@ export const createSubscription = async (req: Request, res: Response) => {
     const totalRupees = totalPaise / 100;
 
     // Step 1 — Ensure a Cashfree Plan exists for this CureBharat plan
-    const cfPlanId = await getOrCreateCashfreePlan(plan);
+    const totalPaise  = Math.round(plan.price + (plan.price * (plan.gstPercent || 18)) / 100);
+    const totalRupees = totalPaise / 100;
 
     // Step 2 — Generate unique subscription ID
     const subscriptionId = `cb_sub_${Date.now()}_${seller.memberId.replace(/-/g, '')}`;
 
     const returnUrl = `${process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success'}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
 
+    const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+
     // Step 3 — Create the Cashfree Subscription (mandate)
     const subPayload = {
       subscription_id:          subscriptionId,
       plan_details: {
-        plan_id: cfPlanId,
+        plan_name:          `CureBharat ${safePlanName} Yearly`,
+        plan_type:          'PERIODIC',
+        plan_amount:        totalRupees,
+        plan_max_amount:    totalRupees,
+        plan_currency:      'INR',
+        plan_interval_type: 'YEAR',
+        plan_intervals:     1,
+        plan_note:          `Annual renewal for ${plan.name}`
       },
       customer_details: {
         customer_name:  customerName,
