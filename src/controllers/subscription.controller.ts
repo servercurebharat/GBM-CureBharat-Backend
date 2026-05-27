@@ -67,6 +67,12 @@ export const createSubscription = async (req: Request, res: Response) => {
     const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
 
     // Step 3 — Create the Cashfree Subscription (mandate)
+    const firstChargeDate = new Date();
+    firstChargeDate.setFullYear(firstChargeDate.getFullYear() + 1);
+
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 10);
+
     const subPayload = {
       subscription_id:          subscriptionId,
       plan_details: {
@@ -85,8 +91,8 @@ export const createSubscription = async (req: Request, res: Response) => {
         customer_email: customerEmail || `${customerMobile}@curebharat.com`,
       },
       subscription_note:         `Policy for ${customerName} - ${plan.name}`,
-      subscription_first_charge_time: new Date(Date.now() + 60 * 1000).toISOString(), // 1 min from now
-      subscription_expiry_time:       new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 10 years
+      subscription_first_charge_time: firstChargeDate.toISOString(),
+      subscription_expiry_time:       expiryDate.toISOString(),
       authorization_details: {
         authorization_amount: totalRupees,
         authorization_amount_refund: false,
