@@ -59,10 +59,6 @@ export const createSubscription = async (req: Request, res: Response) => {
     const totalPaise  = plan.price + gstAmount;
     const totalRupees = totalPaise / 100;
 
-    // Step 1 — Ensure a Cashfree Plan exists for this CureBharat plan
-    const totalPaise  = Math.round(plan.price + (plan.price * (plan.gstPercent || 18)) / 100);
-    const totalRupees = totalPaise / 100;
-
     // Step 2 — Generate unique subscription ID
     const subscriptionId = `cb_sub_${Date.now()}_${seller.memberId.replace(/-/g, '')}`;
 
@@ -134,7 +130,6 @@ export const createSubscription = async (req: Request, res: Response) => {
       paymentMethod:          'cashfree',
       autopayEnabled:         true,
       cashfreeSubscriptionId: subscriptionId,
-      cashfreePlanId:         cfPlanId,
       nextRenewalDate:        nextRenewal,
       renewalCount:           0,
       commissionProcessed:    false,
