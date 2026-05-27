@@ -26,7 +26,7 @@ const CF_HEADERS = {
 // Plan ID format: cb_plan_<mongoId> — deterministic so we never duplicate
 // ─────────────────────────────────────────────────────────────────────────────
 async function getOrCreateCashfreePlan(plan: any): Promise<string> {
-  const cfPlanId = `cb_plan_${plan._id.toString()}`;
+  const cfPlanId = `cb_plan_${plan._id.toString()}_v2`;
 
   const totalPaise  = Math.round(plan.price + (plan.price * (plan.gstPercent || 18)) / 100);
   const totalRupees = totalPaise / 100;
@@ -48,7 +48,7 @@ async function getOrCreateCashfreePlan(plan: any): Promise<string> {
     plan_name:          `CureBharat ${safePlanName} Yearly`,
     plan_type:          'PERIODIC',
     plan_currency:      'INR',
-    plan_amount:        totalRupees,
+    plan_recurring_amount: totalRupees,
     plan_max_amount:    totalRupees,
     plan_interval_type: 'YEAR',
     plan_intervals:     1,
