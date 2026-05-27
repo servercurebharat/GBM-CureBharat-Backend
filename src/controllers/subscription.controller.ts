@@ -41,9 +41,11 @@ async function getOrCreateCashfreePlan(plan: any): Promise<string> {
   }
 
   // Create new Cashfree plan (PERIODIC, YEAR interval)
+  const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  
   await axios.post(`${CF_BASE_URL}/pg/plans`, {
     plan_id:            cfPlanId,
-    plan_name:          `CureBharat — ${plan.name} (Yearly)`,
+    plan_name:          `CureBharat ${safePlanName} Yearly`,
     plan_type:          'PERIODIC',
     plan_currency:      'INR',
     plan_max_amount:    totalRupees,
@@ -192,13 +194,38 @@ export const createSubscription = async (req: Request, res: Response) => {
 export const subscriptionWebhook = async (req: Request, res: Response) => {
   try {
     const event     = req.body;
-    const eventType = event?.type as string;
+    const eventType = (event?.type as string || '').toLowerCase();
 
     console.log(`[SubWebhook] Event: ${eventType}`, JSON.stringify(event?.data || {}).substring(0, 200));
 
-    // ── Mandate Authorized + First Payment Success ──────────────────────────
-    if (eventType === 'SUBSCRIPTION_ACTIVATED' || eventType === 'SUBSCRIPTION_CHARGE_SUCCESS') {
-      const subscriptionId = event?.data?.subscription?.subscription_id as string;
+    // Extract subscription ID — Cashfree puts it in different places depending on event
+    const subscriptionId: string =
+      event?.data?.subscription?.subscription_id ||
+      event?.data?.subscription_id ||
+      event?.data?.subscriptionId || '';
+
+    // ── Mandate Authorized / Auth Status (mandate approved by user) ──────────
+    // Cashfree event: "subscription auth status" or "SUBSCRIPTION_ACTIVATED"
+    const isAuthEvent = eventType === 'subscription_activated'
+      || eventType === 'subscription.auth.status'
+      || eventType === 'subscription auth status';
+
+    // ── Yearly Payment Success ───────────────────────────────────────────────
+    // Cashfree event: "subscription payment success" or "SUBSCRIPTION_CHARGE_SUCCESS"
+    const isPaymentSuccess = eventType === 'subscription_charge_success'
+      || eventType === 'subscription.payment.success'
+      || eventType === 'subscription payment success';
+
+    // ── Cancelled / Deactivated ──────────────────────────────────────────────
+    // Cashfree event: "subscription payment cancelled" or "subscription status changed"
+    const isCancelled = eventType === 'subscription_cancelled'
+      || eventType === 'subscription_deactivated'
+      || eventType === 'subscription.payment.cancelled'
+      || eventType === 'subscription payment cancelled'
+      || eventType === 'subscription status changed';
+
+    // ── Handle Activation (first mandate approval) ───────────────────────────
+    if (isAuthEvent || isPaymentSuccess) {
       if (!subscriptionId) return res.status(200).json({ success: true });
 
       const sale = await Sale.findOne({ cashfreeSubscriptionId: subscriptionId }) as any;
@@ -207,17 +234,17 @@ export const subscriptionWebhook = async (req: Request, res: Response) => {
         return res.status(200).json({ success: true });
       }
 
-      const isFirstActivation = eventType === 'SUBSCRIPTION_ACTIVATED';
-      const isRenewal         = eventType === 'SUBSCRIPTION_CHARGE_SUCCESS' && sale.status === 'active';
+      const isFirstActivation = isAuthEvent && sale.status === 'pending_autopay';
+      const isRenewal         = isPaymentSuccess && sale.status === 'active';
 
       // ── First Activation → Create/link user account + activate sale ───────
-      if (isFirstActivation && sale.status === 'pending_autopay') {
+      if (isFirstActivation) {
         sale.status = 'active';
-        sale.cashfreePaymentId = event?.data?.payment?.cf_payment_id || '';
+        sale.cashfreePaymentId = event?.data?.payment?.cf_payment_id
+          || event?.data?.payment?.payment_id || '';
 
         // Create user account if not exists
         let newUserAccount: any = await User.findOne({ mobile: sale.customerMobile });
-        let createdNewUser = false;
 
         if (!newUserAccount) {
           const lastHCC = await User.findOne({ role: 'hcc' }).sort({ createdAt: -1 });
@@ -243,7 +270,6 @@ export const subscriptionWebhook = async (req: Request, res: Response) => {
           });
           await newUserAccount.save();
           await Wallet.create({ user: newUserAccount._id });
-          createdNewUser = true;
 
           if (seller) {
             await User.findByIdAndUpdate(seller._id, { $inc: { personalRecruitsThisMonth: 1 } });
@@ -275,9 +301,9 @@ export const subscriptionWebhook = async (req: Request, res: Response) => {
         sale.renewalCount += 1;
         const nextRenewal = new Date();
         nextRenewal.setFullYear(nextRenewal.getFullYear() + 1);
-        sale.nextRenewalDate  = nextRenewal;
-        sale.commissionProcessed = false; // Reset so commission runs again
-        sale.cycleMonth       = getCurrentCycleMonth();
+        sale.nextRenewalDate     = nextRenewal;
+        sale.commissionProcessed = false;
+        sale.cycleMonth          = getCurrentCycleMonth();
         await sale.save();
 
         processCommission(sale._id.toString()).catch(console.error);
@@ -286,9 +312,10 @@ export const subscriptionWebhook = async (req: Request, res: Response) => {
     }
 
     // ── Subscription Cancelled ──────────────────────────────────────────────
-    if (eventType === 'SUBSCRIPTION_CANCELLED' || eventType === 'SUBSCRIPTION_DEACTIVATED') {
-      const subscriptionId = event?.data?.subscription?.subscription_id as string;
-      if (subscriptionId) {
+    if (isCancelled && subscriptionId) {
+      // Only cancel if status changed to inactive/cancelled (not just a payment fail)
+      const statusValue = (event?.data?.subscription?.status || event?.data?.status || '').toLowerCase();
+      if (!statusValue || statusValue === 'cancelled' || statusValue === 'deactivated' || statusValue === 'inactive') {
         await Sale.updateOne({ cashfreeSubscriptionId: subscriptionId }, { status: 'cancelled' });
         console.log(`[SubWebhook] Subscription cancelled: ${subscriptionId}`);
       }
