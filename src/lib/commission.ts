@@ -61,10 +61,19 @@ export async function processCommission(saleId: string): Promise<void> {
   await seller.save();
 
   // ── 2. HCM OVERRIDE ─────────────────────────────────────────────────────
+  // Skip HCM override if the seller IS an HCM (they already got 40% direct above)
   const hcmRate = await getCommissionRate('hcm_override_percent', 40);
   let hcm: IUser | null = null;
-  if (seller.referrerId) {
+
+  const sellerRank = (seller.rank || '').toUpperCase();
+  const isSellerHcmOrAbove = ['HCM', 'HBA', 'SH'].includes(sellerRank);
+
+  if (!isSellerHcmOrAbove && seller.referrerId) {
     hcm = await findNextExactUpline(seller.referrerId as Types.ObjectId, 'HCM');
+  } else if (sellerRank === 'HCM' && seller.referrerId) {
+    // Seller is HCM — look for HCM *above* them (breakaway scenario handled below)
+    // But skip self, go straight up to find HBA-level
+    console.log(`[Commission] Seller is HCM (${seller.memberId}) — skipping HCM self-override, looking for HBA upline`);
   }
 
   let hcmIncome = 0;
@@ -134,10 +143,20 @@ export async function processCommission(saleId: string): Promise<void> {
   // ── 3. HBA OVERRIDE ─────────────────────────────────────────────────────
   const hbaRate = await getCommissionRate('hba_override_percent', 40);
   let hba: IUser | null = null;
-  const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : seller.referrerId;
-  
-  if (searchStartForHba) {
-    hba = await findNextExactUpline(searchStartForHba as Types.ObjectId, 'HBA');
+
+  // When seller is HBA or above, skip HBA override on self — go straight to SH
+  const isSellerHbaOrAbove = ['HBA', 'SH'].includes(sellerRank);
+
+  if (!isSellerHbaOrAbove) {
+    const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : seller.referrerId;
+    if (searchStartForHba) {
+      hba = await findNextExactUpline(searchStartForHba as Types.ObjectId, 'HBA');
+    }
+  } else {
+    // Seller is HBA or SH — their own upline for HBA override search starts from their referrer
+    if (seller.referrerId && sellerRank !== 'SH') {
+      hba = await findNextExactUpline(seller.referrerId as Types.ObjectId, 'HBA');
+    }
   }
 
   let hbaIncome = 0;

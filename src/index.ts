@@ -22,6 +22,8 @@ import notificationRoutes from './routes/notification.routes';
 import activityRoutes from './routes/activity.routes';
 import chatbotRoutes from './chatbot/routes/chatbot.routes';
 import complaintRoutes from './routes/complaint.routes';
+import paymentRoutes from './routes/payment.routes';
+import subscriptionRoutes from './routes/subscription.routes';
 
 // Logic & Cron
 import { scheduleMaintenanceCrons } from './lib/payoutCycle';
@@ -126,6 +128,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/complaints', complaintRoutes);
+app.use('/api/payment', paymentRoutes);         // Cashfree one-time payment
+app.use('/api/subscriptions', subscriptionRoutes); // Cashfree AutoPay / Subscriptions
 
 // Health Check
 app.get('/api/health', (req, res) => {

@@ -19,13 +19,22 @@ export interface ISale extends Document {
   hcmId?: mongoose.Types.ObjectId;
   hbaId?: mongoose.Types.ObjectId;
   shId?: mongoose.Types.ObjectId;
-  // Payment
-  razorpayOrderId: string;
-  razorpayPaymentId: string;
-  paymentMethod: 'razorpay';
+  // Payment — Cashfree (primary)
+  cashfreeOrderId?: string;
+  cashfreePaymentId?: string;
+  // Payment — Razorpay (legacy / backward compat)
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paymentMethod: 'cashfree' | 'razorpay';
   sourceType: 'dashboard' | 'public_link';
+  // AutoPay / Subscription
+  autopayEnabled: boolean;
+  cashfreeSubscriptionId?: string;   // Cashfree subscription_id
+  cashfreePlanId?: string;           // Cashfree plan_id used
+  nextRenewalDate?: Date;            // When the next yearly charge fires
+  renewalCount: number;              // How many times auto-renewed
   // Status
-  status: 'active' | 'cancelled';
+  status: 'active' | 'cancelled' | 'pending_autopay';
   commissionProcessed: boolean;
   cycleMonth: string;        // YYYY-MM
   createdAt: Date;
@@ -48,13 +57,22 @@ const saleSchema = new Schema<ISale>({
   hcmId:            { type: Schema.Types.ObjectId, ref: 'User' },
   hbaId:            { type: Schema.Types.ObjectId, ref: 'User' },
   shId:             { type: Schema.Types.ObjectId, ref: 'User' },
-  razorpayOrderId:  { type: String, required: true },
-  razorpayPaymentId:{ type: String, required: true, unique: true },
-  paymentMethod:    { type: String, default: 'razorpay' },
-  sourceType:       { type: String, enum: ['dashboard', 'public_link'], default: 'dashboard' },
-  status:           { type: String, enum: ['active', 'cancelled'], default: 'active' },
-  commissionProcessed: { type: Boolean, default: false },
-  cycleMonth:       { type: String, required: true },
+  cashfreeOrderId:   { type: String },
+  cashfreePaymentId: { type: String, sparse: true },
+  razorpayOrderId:   { type: String },
+  razorpayPaymentId: { type: String, sparse: true },
+  paymentMethod:           { type: String, enum: ['cashfree', 'razorpay'], default: 'cashfree' },
+  sourceType:              { type: String, enum: ['dashboard', 'public_link'], default: 'dashboard' },
+  // AutoPay / Subscription
+  autopayEnabled:          { type: Boolean, default: false },
+  cashfreeSubscriptionId:  { type: String },
+  cashfreePlanId:          { type: String },
+  nextRenewalDate:         { type: Date },
+  renewalCount:            { type: Number, default: 0 },
+  // Status
+  status:                  { type: String, enum: ['active', 'cancelled', 'pending_autopay'], default: 'active' },
+  commissionProcessed:     { type: Boolean, default: false },
+  cycleMonth:              { type: String, required: true },
 }, { timestamps: true });
 
 saleSchema.index({ sellerId: 1 });
