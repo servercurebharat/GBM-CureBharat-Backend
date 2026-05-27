@@ -113,11 +113,17 @@ export const createSubscription = async (req: Request, res: Response) => {
         customer_phone: customerMobile,
         customer_email: customerEmail || `${customerMobile}@curebharat.com`,
       },
-      subscription_note:         `Policy for ${customerName} — ${plan.name}`,
-      subscription_charge_amount: totalRupees, // first charge = full plan price
+      subscription_note:         `Policy for ${customerName} - ${plan.name}`,
       subscription_first_charge_time: new Date(Date.now() + 60 * 1000).toISOString(), // 1 min from now
       subscription_expiry_time:       new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 10 years
-      return_url: returnUrl,
+      authorization_details: {
+        authorization_amount: totalRupees,
+        authorization_amount_refund: false,
+        payment_methods: ["upi", "card", "enach", "pnach"]
+      },
+      subscription_meta: {
+        return_url: returnUrl
+      }
     };
 
     const cfRes = await axios.post(
