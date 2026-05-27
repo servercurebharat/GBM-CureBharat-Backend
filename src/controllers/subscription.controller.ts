@@ -48,6 +48,7 @@ async function getOrCreateCashfreePlan(plan: any): Promise<string> {
     plan_name:          `CureBharat ${safePlanName} Yearly`,
     plan_type:          'PERIODIC',
     plan_currency:      'INR',
+    plan_amount:        totalRupees,
     plan_max_amount:    totalRupees,
     plan_interval_type: 'YEAR',
     plan_intervals:     1,
