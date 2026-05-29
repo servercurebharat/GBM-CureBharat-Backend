@@ -191,13 +191,15 @@ export const subscriptionWebhook = async (req: Request, res: Response) => {
     // Cashfree event: "subscription auth status" or "SUBSCRIPTION_ACTIVATED"
     const isAuthEvent = eventType === 'subscription_activated'
       || eventType === 'subscription.auth.status'
-      || eventType === 'subscription auth status';
+      || eventType === 'subscription auth status'
+      || eventType === 'subscription_auth_status'; // Added v2025 format
 
     // ── Yearly Payment Success ───────────────────────────────────────────────
     // Cashfree event: "subscription payment success" or "SUBSCRIPTION_CHARGE_SUCCESS"
     const isPaymentSuccess = eventType === 'subscription_charge_success'
       || eventType === 'subscription.payment.success'
-      || eventType === 'subscription payment success';
+      || eventType === 'subscription payment success'
+      || eventType === 'subscription_payment_success'; // Added v2025 format
 
     // ── Cancelled / Deactivated ──────────────────────────────────────────────
     // Cashfree event: "subscription payment cancelled" or "subscription status changed"
@@ -205,7 +207,8 @@ export const subscriptionWebhook = async (req: Request, res: Response) => {
       || eventType === 'subscription_deactivated'
       || eventType === 'subscription.payment.cancelled'
       || eventType === 'subscription payment cancelled'
-      || eventType === 'subscription status changed';
+      || eventType === 'subscription status changed'
+      || eventType === 'subscription_status_changed'; // Added v2025 format
 
     // ── Handle Activation (first mandate approval) ───────────────────────────
     if (isAuthEvent || isPaymentSuccess) {
