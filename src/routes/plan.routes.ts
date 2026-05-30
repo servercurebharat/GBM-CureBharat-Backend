@@ -11,7 +11,7 @@ import { checkRole } from '../middleware/role.middleware';
 
 const router = express.Router();
 
-import { upload } from '../middleware/upload.middleware';
+import { upload } from '../config/cloudinary';
 
 // Public/Member routes
 router.get('/', authMiddleware, getPlans);
