@@ -49,7 +49,7 @@ export async function processCommission(saleId: string): Promise<void> {
     userId: seller._id as Types.ObjectId,
     amount: directIncome,
     type: 'direct',
-    description: `Direct commission - Policy ${sale.policyId}`,
+    description: `Direct commission from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
     sourceUserId: seller._id as Types.ObjectId,
     status: 'provisional',
     cycleMonth,
@@ -110,7 +110,7 @@ export async function processCommission(saleId: string): Promise<void> {
         userId: hcm._id as Types.ObjectId,
         amount: splitIncome,
         type: 'override',
-        description: `HCM breakaway 20% immediate override from ${seller.memberId} - Policy ${sale.policyId}`,
+        description: `HCM breakaway 20% immediate override from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
         sourceUserId: seller._id as Types.ObjectId,
         status: 'provisional',
         cycleMonth,
@@ -121,7 +121,7 @@ export async function processCommission(saleId: string): Promise<void> {
         userId: hcm._id as Types.ObjectId,
         amount: splitIncome,
         type: 'override',
-        description: `HCM breakaway 20% held override from ${seller.memberId} - Policy ${sale.policyId} (Releases at HBA Rank)`,
+        description: `HCM breakaway 20% held override from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId} (Releases at HBA Rank)`,
         sourceUserId: seller._id as Types.ObjectId,
         status: 'held',
         cycleMonth,
@@ -132,7 +132,7 @@ export async function processCommission(saleId: string): Promise<void> {
         userId: hcm._id as Types.ObjectId,
         amount: hcmIncome,
         type: 'override',
-        description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
+        description: `HCM override from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
         sourceUserId: seller._id as Types.ObjectId,
         status: 'provisional',
         cycleMonth,
@@ -164,11 +164,12 @@ export async function processCommission(saleId: string): Promise<void> {
     sale.hbaId = hba._id as Types.ObjectId;
     const potentialHcmIncome = Math.round(directIncome * hcmRate);
     hbaIncome = Math.round(potentialHcmIncome * hbaRate);
+    const hbaSourceUser = hcm || seller;
     await addToWallet({
       userId: hba._id as Types.ObjectId,
       amount: hbaIncome,
       type: 'override',
-      description: `HBA override from ${hcm ? hcm.memberId : seller.memberId} - Policy ${sale.policyId}`,
+      description: `HBA override from ${hbaSourceUser.name} (${hbaSourceUser.memberId}) - Policy ${sale.policyId}`,
       sourceUserId: seller._id as Types.ObjectId,
       status: 'provisional',
       cycleMonth,
@@ -189,11 +190,12 @@ export async function processCommission(saleId: string): Promise<void> {
   if (sh) {
     sale.shId = sh._id as Types.ObjectId;
     const shIncome = Math.round(baseAmount * shRate);
+    const shSourceUser = hba || hcm || seller;
     await addToWallet({
       userId: sh._id as Types.ObjectId,
       amount: shIncome,
       type: 'leadership',
-      description: `SH leadership bonus - Policy ${sale.policyId}`,
+      description: `SH leadership bonus from ${shSourceUser.name} (${shSourceUser.memberId}) - Policy ${sale.policyId}`,
       sourceUserId: seller._id as Types.ObjectId,
       status: 'provisional',
       cycleMonth,
@@ -242,6 +244,7 @@ async function addToWallet(entry: {
     cycleMonth: entry.cycleMonth,
     status: entry.status,
     date: new Date(),
+    sourceUserId: entry.sourceUserId,
   });
 
   if (entry.status === 'provisional') {
