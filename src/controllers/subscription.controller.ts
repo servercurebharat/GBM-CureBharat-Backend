@@ -62,7 +62,8 @@ export const createSubscription = async (req: Request, res: Response) => {
     // Step 2 — Generate unique subscription ID
     const subscriptionId = `cb_sub_${Date.now()}_${seller.memberId.replace(/-/g, '')}`;
 
-    const returnUrl = `${process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success'}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
+    const baseUrl = req.body.returnUrl || process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success';
+    const returnUrl = `${baseUrl}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
 
     const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
 
