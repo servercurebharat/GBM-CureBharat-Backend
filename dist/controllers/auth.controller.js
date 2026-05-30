@@ -5,9 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.changePassword = exports.getMe = exports.register = exports.verifyOTP = exports.sendOTP = exports.login = exports.logout = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const User_1 = __importDefault(require("../models/User"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
+const OTP_1 = __importDefault(require("../models/OTP"));
+const mailer_1 = require("../lib/mailer");
 const activityLogger_1 = require("../lib/activityLogger");
+const notification_controller_1 = require("./notification.controller");
 // EPin import removed
 // Predefined test accounts: mobile -> password
 const PREDEFINED_ACCOUNTS = {
@@ -29,11 +33,11 @@ const logout = (req, res) => {
     return res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
 exports.logout = logout;
-// ─── LOGIN (Password-only, no OTP) ───────────────────────────────────────────
+// ─── LOGIN (Password + optional SMTP email OTP verification) ───────────────────
 const login = async (req, res) => {
     try {
-        const { mobile, password, location } = req.body;
-        console.log(`[AUTH] Login attempt for ${mobile} | Has Location: ${!!location}`);
+        const { mobile, password, location, otp } = req.body;
+        console.log(`[AUTH] Login attempt for ${mobile} | Has Location: ${!!location} | Has OTP: ${!!otp}`);
         if (!mobile || !password) {
             return res.status(400).json({ success: false, message: 'Mobile and password are required' });
         }
@@ -43,26 +47,67 @@ const login = async (req, res) => {
         console.log(`[AUTH] Login attempt: ${mobile}`);
         let isVerified = false;
         const user = await User_1.default.findOne({ mobile }).lean();
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Account not found. Please register first.' });
+        }
         // 1. Check predefined test accounts
         const predefinedPassword = PREDEFINED_ACCOUNTS[mobile];
         if (predefinedPassword && predefinedPassword === password) {
             isVerified = true;
             console.log(`[AUTH] Predefined account matched for ${mobile}`);
         }
-        // 2. Check DB password (plain text for now — upgrade to bcrypt later)
-        if (!isVerified && user && user.password && user.password === password) {
-            isVerified = true;
-            console.log(`[AUTH] DB password matched for ${mobile}`);
+        // 2. Check DB password (supports bcrypt with plain-text fallback)
+        if (!isVerified && user.password) {
+            if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+                isVerified = await bcryptjs_1.default.compare(password, user.password);
+            }
+            else {
+                isVerified = user.password === password;
+            }
+            if (isVerified) {
+                console.log(`[AUTH] DB password matched for ${mobile}`);
+            }
         }
         if (!isVerified) {
             console.log(`[AUTH] Login DENIED for ${mobile}`);
             return res.status(401).json({ success: false, message: 'Invalid mobile number or password' });
         }
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Account not found. Please register first.' });
-        }
         if (user.status === 'blocked') {
             return res.status(403).json({ success: false, message: 'Your account has been blocked. Contact support.' });
+        }
+        // 3. OTP verification flow (only for users with email, bypassing predefined developer accounts)
+        const isPredefined = !!predefinedPassword;
+        if (!isPredefined && user.email) {
+            if (!otp) {
+                // Generate and store OTP
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+                await OTP_1.default.findOneAndUpdate({ email: user.email }, { otp: code, expiresAt }, { upsert: true, new: true });
+                // Send email
+                const isSent = await (0, mailer_1.sendOTPMail)(user.email, code);
+                if (!isSent) {
+                    console.warn(`\n[OTP FALLBACK] SMTP transmission failed for ${user.email}.\n[OTP FALLBACK] DEV OTP CODE GENERATED: ${code}\n[OTP FALLBACK] Please type this code in the frontend login form to proceed.\n`);
+                }
+                else {
+                    console.log(`[AUTH] 2-step verification code sent to: ${user.email}`);
+                }
+                return res.status(200).json({
+                    success: true,
+                    requiresOTP: true,
+                    email: user.email,
+                    message: 'A 6-digit verification code has been sent to your registered email address.'
+                });
+            }
+            else {
+                // Verify submitted OTP
+                const record = await OTP_1.default.findOne({ email: user.email, otp });
+                if (!record) {
+                    return res.status(400).json({ success: false, message: 'Invalid or expired verification code' });
+                }
+                // Delete verified OTP so it cannot be reused
+                await OTP_1.default.deleteOne({ _id: record._id });
+                console.log(`[AUTH] 2-step OTP verified successfully for: ${user.email}`);
+            }
         }
         // Update login audit info
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -102,12 +147,59 @@ const login = async (req, res) => {
     }
 };
 exports.login = login;
-// ─── Kept for backward compat — now just delegates to login ─────────────────
 const sendOTP = async (req, res) => {
-    return res.status(410).json({ success: false, message: 'OTP system is deprecated. Use /auth/login instead.' });
+    try {
+        const { email } = req.body;
+        console.log(`[AUTH] Requested OTP for: ${email}`);
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email address is required' });
+        }
+        // Generate a secure 6-digit random code
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+        // Store in Mongoose database
+        await OTP_1.default.findOneAndUpdate({ email }, { otp, expiresAt }, { upsert: true, new: true });
+        // Send the email via SMTP Nodemailer
+        const isSent = await (0, mailer_1.sendOTPMail)(email, otp);
+        if (!isSent) {
+            return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please try again later.' });
+        }
+        return res.status(200).json({
+            success: true,
+            message: 'OTP sent successfully to your email.'
+        });
+    }
+    catch (error) {
+        console.error('[AUTH] sendOTP error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
 };
 exports.sendOTP = sendOTP;
-exports.verifyOTP = exports.login; // alias
+const verifyOTP = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        console.log(`[AUTH] Verifying OTP for: ${email}`);
+        if (!email || !otp) {
+            return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+        }
+        // Find in OTP collection
+        const record = await OTP_1.default.findOne({ email, otp });
+        if (!record) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+        // Delete verified OTP record so it cannot be reused
+        await OTP_1.default.deleteOne({ _id: record._id });
+        return res.status(200).json({
+            success: true,
+            message: 'OTP verified successfully.'
+        });
+    }
+    catch (error) {
+        console.error('[AUTH] verifyOTP error:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+exports.verifyOTP = verifyOTP;
 const register = async (req, res) => {
     try {
         const { name, mobile, email, referrerId, state, password, role: targetRole } = req.body;
@@ -115,7 +207,11 @@ const register = async (req, res) => {
         if (!name || !mobile) {
             return res.status(400).json({ success: false, message: 'Name and mobile are required' });
         }
-        const requesterRole = requester?.role?.toLowerCase() || 'public';
+        let requesterRole = requester?.role?.toLowerCase() || 'public';
+        // Normalize hcb -> hba for database compatibility
+        if (requesterRole === 'hcb') {
+            requesterRole = 'hba';
+        }
         // Define Allowed Target Roles
         const permissions = {
             'admin': ['sh', 'hba', 'hcm', 'hcc'],
@@ -128,8 +224,13 @@ const register = async (req, res) => {
         const allowedRoles = permissions[requesterRole] || ['hcc'];
         // If requester is admin, they can set any role, otherwise check permissions
         let roleToAssign = targetRole?.toLowerCase() || 'hcc';
+        // Normalize hcb -> hba for database compatibility
+        if (roleToAssign === 'hcb') {
+            roleToAssign = 'hba';
+        }
         if (requesterRole !== 'admin' && !allowedRoles.includes(roleToAssign)) {
-            return res.status(403).json({ success: false, message: `As a ${requesterRole.toUpperCase()}, you are not permitted to register a ${roleToAssign.toUpperCase()}` });
+            const displayRole = roleToAssign.toUpperCase();
+            return res.status(403).json({ success: false, message: `As a ${requesterRole.toUpperCase()}, you are not permitted to register a ${displayRole}` });
         }
         const existingUser = await User_1.default.findOne({ mobile });
         if (existingUser) {
@@ -169,6 +270,21 @@ const register = async (req, res) => {
         });
         await newUser.save();
         await Wallet_1.default.create({ user: newUser._id });
+        // Send Welcome Email asynchronously
+        if (newUser.email) {
+            (0, mailer_1.sendWelcomeMail)(newUser.email, newUser.name, newUser.memberId, newUser.role)
+                .catch(mailErr => console.error('[AUTH] Welcome email async failed:', mailErr));
+        }
+        // Trigger in-app notification to all admin users about the new recruitment/registration!
+        try {
+            const admins = await User_1.default.find({ role: 'admin' });
+            for (const admin of admins) {
+                await (0, notification_controller_1.createNotification)(admin._id.toString(), 'New Member Recruited', `A new member, ${newUser.name} (${newUser.memberId}), has registered in ${newUser.state}. Referrer: ${referrer ? `${referrer.name} (${referrer.memberId})` : 'None (Direct Admin)'}.`, 'info', `/admin/members`);
+            }
+        }
+        catch (notifErr) {
+            console.error('[AUTH] Admin registration notification failed:', notifErr);
+        }
         // E-Pin logic removed (Online Only)
         // Update referrer's monthly recruitment count and recursive team size
         const updateRecursiveTeamSize = async (startUserId) => {

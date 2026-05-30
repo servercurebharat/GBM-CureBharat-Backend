@@ -11,4 +11,7 @@ router.get('/withdrawals', auth_middleware_1.authMiddleware, wallet_controller_1
 router.get('/all-provisional', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.getAllProvisional);
 router.get('/global-ledger', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.getAllTransactions);
 router.post('/payout-cycle', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.triggerPayoutCycle);
+router.get('/withdrawal-requests', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.getAllWithdrawalRequests);
+router.patch('/withdrawal-requests/:id', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.updateWithdrawalStatus);
+router.patch('/:id/unfreeze', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin']), wallet_controller_1.unfreezeWallet);
 exports.default = router;

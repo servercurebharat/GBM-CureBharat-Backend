@@ -301,6 +301,25 @@ export const updateUserStatus = async (req: Request, res: Response) => {
 };
 
 /**
+ * PUT /api/admin/users/:id/reset-password
+ * Reset user password to default (123456)
+ */
+export const resetUserPassword = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    user.password = '123456';
+    await user.save();
+    res.json({ success: true, message: `Password reset successfully to 123456` });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * POST /api/admin/announcements
  * Send broadcast messages/offers to selected or all users
  */

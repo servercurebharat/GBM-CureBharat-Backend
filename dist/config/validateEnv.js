@@ -21,5 +21,11 @@ function validateEnv() {
     if (missingRazorpay.length > 0) {
         console.warn(`⚠️  Warning: Missing Razorpay configuration: ${missingRazorpay.join(', ')}. Payment features will be disabled.`);
     }
+    // Check Cashfree (Optional but warned)
+    const cashfreeVars = ['CASHFREE_APP_ID', 'CASHFREE_SECRET_KEY', 'CASHFREE_RETURN_URL'];
+    const missingCashfree = cashfreeVars.filter(key => !process.env[key]);
+    if (missingCashfree.length > 0) {
+        console.warn(`⚠️  Warning: Missing Cashfree configuration: ${missingCashfree.join(', ')}. Cashfree payments will be disabled.`);
+    }
     console.log('✅ Environment variables validated');
 }

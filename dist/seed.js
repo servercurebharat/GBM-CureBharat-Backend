@@ -45,7 +45,7 @@ async function seed() {
         ]);
         // --- ADMIN ---
         const admin = await User_1.default.create({
-            name: 'System Administrator', mobile: '9000000000', email: 'admin@curebharat.in',
+            name: 'Sanskar Admin', mobile: '9000000000', email: 'admin@curebharat.in',
             password: await bcryptjs_1.default.hash('Admin@123', 12), role: 'admin', rank: 'ADMIN',
             memberId: 'CB-ADMIN-0001', state: 'Maharashtra', status: 'active', kycStatus: 'approved',
             personalSalesCount: 0, personalSalesThisMonth: 0, teamSize: 0, joiningDate: new Date(),

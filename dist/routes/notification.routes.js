@@ -8,4 +8,5 @@ router.use(auth_middleware_1.authMiddleware);
 router.get('/', notification_controller_1.getNotifications);
 router.put('/:id/read', notification_controller_1.markAsRead);
 router.put('/read-all', notification_controller_1.markAllAsRead);
+router.delete('/clear', notification_controller_1.clearNotifications);
 exports.default = router;

@@ -25,6 +25,7 @@ const getActivityLogs = async (req, res) => {
         const skip = (Number(page) - 1) * Number(limit);
         const [logs, total] = await Promise.all([
             ActivityLog_1.default.find(query)
+                .populate('userId', 'totalTimeSpent')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(Number(limit)),

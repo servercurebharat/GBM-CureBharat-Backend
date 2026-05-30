@@ -32,8 +32,12 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const userSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     mobile: { type: String, required: true, unique: true },
@@ -46,6 +50,27 @@ const userSchema = new mongoose_1.Schema({
     state: { type: String, required: true },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
     kycStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'not_submitted'], default: 'not_submitted' },
+    gender: { type: String, enum: ['male', 'female', 'other'] },
+    dob: { type: Date },
+    profileImage: { type: String },
+    address: {
+        street: String,
+        city: String,
+        zipCode: String,
+    },
+    bankDetails: {
+        accountHolderName: String,
+        accountNumber: String,
+        bankName: String,
+        ifscCode: String,
+        branchName: String,
+        verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+    },
+    nomineeDetails: {
+        name: String,
+        relation: String,
+        mobile: String,
+    },
     kycDocuments: {
         aadhaarNumber: String,
         aadhaarFrontUrl: String,
@@ -66,8 +91,25 @@ const userSchema = new mongoose_1.Schema({
     joiningDate: { type: Date, default: Date.now },
     lastLoginIP: { type: String },
     lastLoginAt: { type: Date },
+    totalTimeSpent: { type: Number, default: 0 },
 }, { timestamps: true });
 // Indexes
 userSchema.index({ role: 1 });
 userSchema.index({ referrerId: 1 });
+// Pre-save hook to hash password automatically
+userSchema.pre('save', async function (next) {
+    const user = this;
+    if (!user.isModified('password'))
+        return next();
+    if (user.password && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+        try {
+            const salt = await bcryptjs_1.default.genSalt(10);
+            user.password = await bcryptjs_1.default.hash(user.password, salt);
+        }
+        catch (err) {
+            return next(err);
+        }
+    }
+    next();
+});
 exports.default = mongoose_1.default.models.User || mongoose_1.default.model('User', userSchema);

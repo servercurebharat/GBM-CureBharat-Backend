@@ -4,29 +4,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.razorpayWebhook = exports.verifyPayment = exports.createOrder = exports.getSeller = void 0;
-const razorpay_1 = __importDefault(require("razorpay"));
-const crypto_1 = __importDefault(require("crypto"));
+const cashfree_pg_1 = require("cashfree-pg");
 const User_1 = __importDefault(require("../models/User"));
 const Plan_1 = __importDefault(require("../models/Plan"));
 const Sale_1 = __importDefault(require("../models/Sale"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
 const commission_1 = require("../lib/commission");
-/**
- * Lazy initialization of Razorpay client to prevent crash on startup
- * if environment variables are missing in Vercel.
- */
-const getRazorpayInstance = () => {
-    const key_id = process.env.RAZORPAY_KEY_ID;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!key_id || !key_secret) {
-        console.error('❌ Razorpay Error: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing from environment variables.');
-        return null;
-    }
-    return new razorpay_1.default({
-        key_id,
-        key_secret,
-    });
-};
+// ─────────────────────────────────────────────
+// Initialize Cashfree SDK (singleton)
+// ─────────────────────────────────────────────
+const cfEnv = process.env.CASHFREE_ENV === 'PROD'
+    ? cashfree_pg_1.CFEnvironment.PRODUCTION
+    : cashfree_pg_1.CFEnvironment.SANDBOX;
+const cashfree = new cashfree_pg_1.Cashfree(cfEnv, process.env.CASHFREE_APP_ID, process.env.CASHFREE_SECRET_KEY);
 // ─── GET /api/public/seller/:memberId ────────────────────────────────────────
 // Validates the partner link and returns seller info + available plans
 const getSeller = async (req, res) => {
@@ -65,10 +55,10 @@ const getSeller = async (req, res) => {
 };
 exports.getSeller = getSeller;
 // ─── POST /api/public/create-order ───────────────────────────────────────────
-// Creates a Razorpay order before payment
+// Creates a Cashfree order before payment
 const createOrder = async (req, res) => {
     try {
-        const { planId, refCode } = req.body;
+        const { planId, refCode, customerName, customerMobile, customerEmail } = req.body;
         if (!planId || !refCode) {
             return res.status(400).json({ success: false, message: 'planId and refCode are required' });
         }
@@ -84,45 +74,41 @@ const createOrder = async (req, res) => {
         }
         // Calculate total with GST (in paise)
         const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
-        const totalAmount = plan.price + gstAmount;
-        // Initialize Razorpay
-        const razorpay = getRazorpayInstance();
-        // Sandbox Bypass: If no keys, return a dummy order for testing
-        if (!razorpay) {
-            console.warn('[Public] RAZORPAY KEYS MISSING: Returning dummy order for Sandbox testing.');
-            return res.status(200).json({
-                success: true,
-                data: {
-                    orderId: `order_sandbox_${Date.now()}`,
-                    amount: totalAmount,
-                    currency: 'INR',
-                    keyId: 'rzp_test_sandbox_dummy', // Dummy key for frontend
-                    planName: plan.name,
-                    planPrice: plan.price,
-                    gstAmount,
-                    isSandbox: true
-                },
-            });
-        }
-        // Create Razorpay order (Real)
-        const order = await razorpay.orders.create({
-            amount: totalAmount, // in paise
-            currency: 'INR',
-            receipt: `rcpt_${Date.now()}`,
-            notes: {
+        const totalPaise = plan.price + gstAmount;
+        const totalRupees = parseFloat((totalPaise / 100).toFixed(2));
+        const orderId = `CB_SALE_${Date.now()}_${seller.memberId.replace('-', '')}`;
+        const orderRequest = {
+            order_id: orderId,
+            order_amount: totalRupees,
+            order_currency: 'INR',
+            customer_details: {
+                customer_id: seller._id.toString(), // seller is the "account holder"
+                customer_name: customerName || seller.name,
+                customer_email: customerEmail || seller.email || `${seller.memberId}@curebharat.com`,
+                customer_phone: customerMobile || seller.mobile || '9999999999',
+            },
+            order_meta: {
+                return_url: `${process.env.CASHFREE_RETURN_URL}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
+                notify_url: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/public/webhook`,
+            },
+            order_tags: {
                 planId: planId.toString(),
                 refCode: refCode.toUpperCase(),
                 planName: plan.name,
             },
-        });
-        console.log(`[Public] Razorpay order created: ${order.id} for plan ${plan.name}, seller ${seller.memberId}`);
+        };
+        const response = await cashfree.PGCreateOrder(orderRequest);
+        const orderData = response.data;
+        console.log(`[Public] Cashfree order created: ${orderId} for plan ${plan.name}, seller ${seller.memberId}`);
         return res.status(200).json({
             success: true,
             data: {
-                orderId: order.id,
-                amount: totalAmount,
+                orderId,
+                paymentSessionId: orderData.payment_session_id,
+                cfOrderId: orderData.cf_order_id,
+                amount: totalRupees,
+                amountPaise: totalPaise,
                 currency: 'INR',
-                keyId: process.env.RAZORPAY_KEY_ID,
                 planName: plan.name,
                 planPrice: plan.price,
                 gstAmount,
@@ -130,39 +116,60 @@ const createOrder = async (req, res) => {
         });
     }
     catch (error) {
-        console.error('[Public] createOrder Error:', error);
-        return res.status(500).json({ success: false, message: 'Failed to create payment order' });
+        const cfErr = error?.response?.data;
+        console.error('[Public] createOrder Error:', cfErr || error.message);
+        return res.status(500).json({
+            success: false,
+            message: cfErr?.message || 'Failed to create payment order',
+            error: error.message,
+        });
     }
 };
 exports.createOrder = createOrder;
 // ─── POST /api/public/verify-payment ─────────────────────────────────────────
-// Verifies Razorpay payment signature, creates sale, triggers commission
+// Verifies Cashfree order status, creates sale, triggers commission
 const verifyPayment = async (req, res) => {
     try {
-        const { razorpay_payment_id, razorpay_order_id, razorpay_signature, refCode, planId, customerName, customerMobile, customerEmail, customerState, nomineeName, nomineeRelation, sourceType = 'public_link', } = req.body;
-        // ── Security: Verify Razorpay Signature (HMAC-SHA256) ──────────────────
-        const key_secret = process.env.RAZORPAY_KEY_SECRET;
-        const isSandboxOrder = razorpay_order_id.startsWith('order_sandbox_');
-        if (!key_secret || isSandboxOrder) {
-            console.warn(`[Public] Bypassing signature verification (isSandbox: ${isSandboxOrder})`);
+        const { orderId, // Cashfree orderId (CB_SALE_...)
+        refCode, planId, customerName, customerMobile, customerEmail, customerState, nomineeName, nomineeRelation, sourceType = 'public_link', } = req.body;
+        if (!orderId || !refCode || !planId) {
+            return res.status(400).json({ success: false, message: 'orderId, refCode and planId are required' });
         }
-        else {
-            const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-            const expectedSignature = crypto_1.default
-                .createHmac('sha256', key_secret)
-                .update(body)
-                .digest('hex');
-            const isTestMode = req.body.isTest === true || process.env.NODE_ENV === 'development';
-            if (expectedSignature !== razorpay_signature && !isTestMode) {
-                console.error('[Public] Payment signature mismatch!', { razorpay_payment_id });
-                return res.status(400).json({ success: false, message: 'Payment verification failed. Signature mismatch.' });
+        // ── Idempotency Check 1: same Cashfree orderId ─────────────────────────
+        const existingSaleByOrder = await Sale_1.default.findOne({ cashfreeOrderId: orderId });
+        if (existingSaleByOrder) {
+            console.log(`[Public] Duplicate orderId ignored: ${orderId}`);
+            return res.status(200).json({ success: true, data: { policyId: existingSaleByOrder.policyId } });
+        }
+        // ── Idempotency Check 2: same mobile + plan in last 5 minutes ─────────
+        // Guards against React StrictMode double-calls that create two different orderIds
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const existingSaleByMobile = await Sale_1.default.findOne({
+            customerMobile,
+            plan: planId,
+            createdAt: { $gte: fiveMinutesAgo },
+        });
+        if (existingSaleByMobile) {
+            console.log(`[Public] Duplicate mobile+plan sale ignored for ${customerMobile}`);
+            return res.status(200).json({ success: true, data: { policyId: existingSaleByMobile.policyId } });
+        }
+        // ── Verify Payment Status with Cashfree ───────────────────────────────
+        let orderStatus = 'PAID'; // Default to PAID in dev/test simulation mode
+        let cfPaymentId = `cf_sim_${Date.now()}`;
+        if (!req.body.isTest) {
+            try {
+                const cfResponse = await cashfree.PGFetchOrder(orderId);
+                orderStatus = cfResponse.data.order_status || 'FAILED';
+                // Try to fetch payment ID from order payments
+                cfPaymentId = cfResponse.data?.payments?.[0]?.cf_payment_id || cfPaymentId;
+            }
+            catch (cfErr) {
+                console.error('[Public] Cashfree verify error:', cfErr?.response?.data || cfErr.message);
+                return res.status(400).json({ success: false, message: 'Could not verify payment with Cashfree' });
             }
         }
-        // ── Idempotency: Prevent duplicate sale creation ───────────────────────
-        const existingSale = await Sale_1.default.findOne({ razorpayPaymentId: razorpay_payment_id });
-        if (existingSale) {
-            console.log(`[Public] Duplicate payment ignored: ${razorpay_payment_id}`);
-            return res.status(200).json({ success: true, data: { policyId: existingSale.policyId } });
+        if (orderStatus !== 'PAID') {
+            return res.status(400).json({ success: false, message: `Payment not completed. Status: ${orderStatus}` });
         }
         // ── Validate Seller ────────────────────────────────────────────────────
         const seller = await User_1.default.findOne({ memberId: refCode.toUpperCase() });
@@ -175,7 +182,7 @@ const verifyPayment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Plan not found' });
         }
         const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
-        const totalAmount = plan.price + gstAmount;
+        const totalPaise = plan.price + gstAmount;
         // ── Create Sale ────────────────────────────────────────────────────────
         const policyId = `CB-POL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
         const newSale = new Sale_1.default({
@@ -189,22 +196,22 @@ const verifyPayment = async (req, res) => {
             customerState,
             nomineeName,
             nomineeRelation,
-            saleAmount: totalAmount,
+            saleAmount: totalPaise,
             businessVolume: plan.businessVolume,
             cycleMonth: (0, commission_1.getCurrentCycleMonth)(),
             status: 'active',
             sourceType,
-            razorpayOrderId: razorpay_order_id,
-            razorpayPaymentId: razorpay_payment_id,
+            paymentMethod: 'cashfree',
+            cashfreeOrderId: orderId,
+            cashfreePaymentId: cfPaymentId,
         });
         await newSale.save();
         console.log(`[Public] Sale created: ${policyId} | Seller: ${seller.memberId} | Plan: ${plan.name}`);
-        // ── Create User Account if not exists ──────────────────────────────────
+        // ── Create User Account (with race-condition protection) ──────────────
         let newUserAccount = await User_1.default.findOne({ mobile: customerMobile });
         let createdNewUser = false;
         if (!newUserAccount) {
             console.log(`[Public] Creating new user account for ${customerMobile}`);
-            // Generate unique memberId for HCC
             const lastHCC = await User_1.default.findOne({ role: 'hcc' }).sort({ createdAt: -1 });
             let nextNum = 1001;
             if (lastHCC && lastHCC.memberId) {
@@ -213,37 +220,50 @@ const verifyPayment = async (req, res) => {
                     nextNum = parseInt(match[0]) + 1;
             }
             const newMemberId = `CB-HCC-${nextNum}`;
-            newUserAccount = new User_1.default({
-                name: customerName,
-                mobile: customerMobile,
-                email: customerEmail,
-                state: customerState || 'Maharashtra',
-                password: '123456', // Default password
-                memberId: newMemberId,
-                referrerId: seller._id,
-                role: 'hcc',
-                rank: 'HCC',
-                status: 'active',
-                kycStatus: 'not_submitted'
-            });
-            await newUserAccount.save();
-            await Wallet_1.default.create({ user: newUserAccount._id });
-            createdNewUser = true;
-            // Update referrer's recruitment count and team size
-            await User_1.default.findByIdAndUpdate(seller._id, { $inc: { personalRecruitsThisMonth: 1 } });
-            // Update recursive team size
-            let currentRefId = seller._id;
-            while (currentRefId) {
-                const refUser = await User_1.default.findById(currentRefId);
-                if (!refUser)
-                    break;
-                refUser.teamSize = (refUser.teamSize || 0) + 1;
-                await refUser.save();
-                currentRefId = refUser.referrerId;
+            try {
+                const toCreate = new User_1.default({
+                    name: customerName,
+                    mobile: customerMobile,
+                    email: customerEmail,
+                    state: customerState || 'Maharashtra',
+                    password: '123456',
+                    memberId: newMemberId,
+                    referrerId: seller._id,
+                    role: 'hcc',
+                    rank: 'HCC',
+                    status: 'active',
+                    kycStatus: 'not_submitted',
+                });
+                await toCreate.save();
+                newUserAccount = toCreate;
+                await Wallet_1.default.create({ user: newUserAccount._id });
+                createdNewUser = true;
+                await User_1.default.findByIdAndUpdate(seller._id, { $inc: { personalRecruitsThisMonth: 1 } });
+                // Update recursive team size up the hierarchy
+                let currentRefId = seller._id;
+                while (currentRefId) {
+                    const refUser = await User_1.default.findById(currentRefId);
+                    if (!refUser)
+                        break;
+                    refUser.teamSize = (refUser.teamSize || 0) + 1;
+                    await refUser.save();
+                    currentRefId = refUser.referrerId;
+                }
+                console.log(`[Public] User account created: ${newMemberId} for ${customerName}`);
             }
-            console.log(`[Public] User account created: ${newMemberId} for ${customerName}`);
+            catch (createErr) {
+                if (createErr.code === 11000) {
+                    // Race condition: another concurrent request already created this user
+                    console.warn(`[Public] Race condition on user creation for ${customerMobile} — fetching existing user`);
+                    newUserAccount = await User_1.default.findOne({ mobile: customerMobile });
+                    createdNewUser = false;
+                }
+                else {
+                    throw createErr; // Re-throw unexpected errors
+                }
+            }
         }
-        // ── Trigger Commission (async — don't block response) ──────────────────
+        // ── Trigger Commission (async) ─────────────────────────────────────────
         (0, commission_1.processCommission)(newSale._id.toString()).catch((err) => {
             console.error(`[Commission Error] Sale ${newSale._id}:`, err);
         });
@@ -257,8 +277,8 @@ const verifyPayment = async (req, res) => {
                 newUser: createdNewUser ? {
                     memberId: newUserAccount.memberId,
                     password: '123456',
-                    message: 'Account created! You can now login with your mobile and password.'
-                } : null
+                    message: 'Account created! You can now login with your mobile and password.',
+                } : null,
             },
         });
     }
@@ -269,34 +289,45 @@ const verifyPayment = async (req, res) => {
 };
 exports.verifyPayment = verifyPayment;
 // ─── POST /api/public/webhook ─────────────────────────────────────────────────
-// Backup: Razorpay server-to-server webhook for missed payment confirmations
+// Cashfree server-to-server webhook for missed payment confirmations
 const razorpayWebhook = async (req, res) => {
     try {
-        const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-        if (!webhookSecret) {
-            console.error('[Webhook] Razorpay Webhook Secret is missing.');
-            return res.status(500).json({ success: false, message: 'Webhook not configured' });
+        const signature = req.headers['x-webhook-signature'] || '';
+        const timestamp = req.headers['x-webhook-timestamp'] || '';
+        const rawBody = JSON.stringify(req.body);
+        // Verify Cashfree webhook signature
+        if (signature && timestamp) {
+            try {
+                cashfree.PGVerifyWebhookSignature(signature, rawBody, timestamp);
+            }
+            catch {
+                console.warn('[PublicWebhook] Invalid signature');
+                return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
+            }
         }
-        const signature = req.headers['x-razorpay-signature'];
-        const expectedSignature = crypto_1.default
-            .createHmac('sha256', webhookSecret)
-            .update(JSON.stringify(req.body))
-            .digest('hex');
-        if (signature !== expectedSignature) {
-            return res.status(400).json({ success: false, message: 'Invalid webhook signature' });
-        }
-        const event = req.body.event;
-        if (event === 'payment.captured') {
-            const payment = req.body.payload.payment.entity;
-            const existing = await Sale_1.default.findOne({ razorpayPaymentId: payment.id });
-            if (!existing) {
-                console.log(`[Webhook] Payment captured but no sale found for ${payment.id} — may need manual review`);
+        const event = req.body;
+        const eventType = event?.type;
+        console.log(`[PublicWebhook] Event received: ${eventType}`);
+        if (eventType === 'PAYMENT_SUCCESS_WEBHOOK') {
+            const orderId = event?.data?.order?.order_id;
+            const cfPayId = event?.data?.payment?.cf_payment_id;
+            // Only process if no sale yet (webhook may arrive before verify-payment call)
+            const existing = await Sale_1.default.findOne({ cashfreeOrderId: orderId });
+            if (!existing && orderId) {
+                console.log(`[PublicWebhook] Sale not yet created for ${orderId} — will be handled on verify`);
+                // The verify-payment endpoint handles sale creation; this is just a backup log
+            }
+            // Mark payment as confirmed if sale exists but commission not yet processed
+            if (existing && !existing.commissionProcessed) {
+                existing.cashfreePaymentId = cfPayId;
+                await existing.save();
+                (0, commission_1.processCommission)(existing._id.toString()).catch(console.error);
             }
         }
         return res.status(200).json({ success: true });
     }
     catch (error) {
-        console.error('[Webhook] Error:', error);
+        console.error('[PublicWebhook] Error:', error.message);
         return res.status(500).json({ success: false });
     }
 };

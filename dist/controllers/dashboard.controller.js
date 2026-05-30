@@ -142,24 +142,30 @@ const getTopLeaders = async (req, res) => {
     try {
         const userId = new mongoose_1.default.Types.ObjectId(req.user._id);
         const role = req.user.role;
+        const { role: filterRole } = req.query;
+        let filterRoleNormalized = filterRole ? filterRole.toLowerCase() : undefined;
+        if (filterRoleNormalized === 'hcb') {
+            filterRoleNormalized = 'hba';
+        }
         let targetRole = '';
         let query = {};
         switch (role) {
             case 'admin':
-                targetRole = 'sh';
-                query = { role: 'sh' };
+                targetRole = filterRoleNormalized ? filterRoleNormalized : 'sh';
+                query = { role: targetRole };
                 break;
             case 'sh':
-                targetRole = 'hba';
-                query = { role: 'hba', referrerId: userId };
+                targetRole = filterRoleNormalized ? filterRoleNormalized : 'hba';
+                query = { role: targetRole, referrerId: userId };
                 break;
             case 'hba':
-                targetRole = 'hcm';
-                query = { role: 'hcm', referrerId: userId };
+            case 'hcb':
+                targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcm';
+                query = { role: targetRole, referrerId: userId };
                 break;
             case 'hcm':
-                targetRole = 'hcc';
-                query = { role: 'hcc', referrerId: userId };
+                targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcc';
+                query = { role: targetRole, referrerId: userId };
                 break;
             case 'hcc':
                 targetRole = 'hcc';

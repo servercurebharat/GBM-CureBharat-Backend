@@ -59,6 +59,24 @@ async function runPayoutCycle(cycleMonth) {
             });
             await wallet.save();
             console.log(`[PayoutCycle] Settled wallet for ${user.memberId}: Net ₹${netPayout}`);
+            // 1. Create In-App Notification for User
+            try {
+                const { createNotification } = require('../controllers/notification.controller');
+                await createNotification(user._id.toString(), 'Payout Settled! 💸', `Your commissions for cycle ${cycleMonth} have been settled. Net ₹${netPayout / 100} is now withdrawable!`, 'success', '/hcc/finance');
+            }
+            catch (notifErr) {
+                console.error(`[PayoutCycle] Failed to send notification for user ${user.memberId}:`, notifErr);
+            }
+            // 2. Send Payout Settlement Email
+            if (user.email) {
+                try {
+                    const { sendPayoutSettlementMail } = require('./mailer');
+                    await sendPayoutSettlementMail(user.email, user.name, cycleMonth, provisional / 100, tdsResult.tdsAmount / 100, netPayout / 100);
+                }
+                catch (mailErr) {
+                    console.error(`[PayoutCycle] Failed to send settlement email to ${user.email}:`, mailErr);
+                }
+            }
         }
         console.log(`[PayoutCycle] Completed payout for ${wallets.length} wallets.`);
     }

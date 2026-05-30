@@ -6,7 +6,7 @@ const analytics_controller_1 = require("../controllers/analytics.controller");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const router = (0, express_1.Router)();
-router.post('/', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['sh', 'hba', 'hcm', 'hcc']), sale_controller_1.createSale);
+router.post('/', auth_middleware_1.authMiddleware, (0, role_middleware_1.checkRole)(['admin', 'sh', 'hba', 'hcm', 'hcc']), sale_controller_1.createSale);
 router.get('/', auth_middleware_1.authMiddleware, sale_controller_1.getMySales);
 router.get('/analytics/ftd', auth_middleware_1.authMiddleware, analytics_controller_1.getFTDAnalytics);
 router.get('/analytics/mtd', auth_middleware_1.authMiddleware, analytics_controller_1.getMTDAnalytics);

@@ -51,6 +51,7 @@ const ActivityLogSchema = new mongoose_1.Schema({
         lng: { type: Number },
         city: { type: String }
     },
+    sessionDuration: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now }
 });
 // Index for high-performance filtering

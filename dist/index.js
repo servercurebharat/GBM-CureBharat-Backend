@@ -22,6 +22,10 @@ const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"))
 const public_routes_1 = __importDefault(require("./routes/public.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
 const activity_routes_1 = __importDefault(require("./routes/activity.routes"));
+const chatbot_routes_1 = __importDefault(require("./chatbot/routes/chatbot.routes"));
+const complaint_routes_1 = __importDefault(require("./routes/complaint.routes"));
+const payment_routes_1 = __importDefault(require("./routes/payment.routes"));
+const subscription_routes_1 = __importDefault(require("./routes/subscription.routes"));
 // Logic & Cron
 const payoutCycle_1 = require("./lib/payoutCycle");
 // Critical: Validate environment before proceeding
@@ -113,6 +117,10 @@ app.use('/api/dashboard', dashboard_routes_1.default);
 app.use('/api/public', public_routes_1.default); // No auth — public Razorpay payment routes
 app.use('/api/notifications', notification_routes_1.default);
 app.use('/api/activity', activity_routes_1.default);
+app.use('/api/chatbot', chatbot_routes_1.default);
+app.use('/api/complaints', complaint_routes_1.default);
+app.use('/api/payment', payment_routes_1.default); // Cashfree one-time payment
+app.use('/api/subscriptions', subscription_routes_1.default); // Cashfree AutoPay / Subscriptions
 // Health Check
 app.get('/api/health', (req, res) => {
     res.json({

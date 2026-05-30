@@ -64,31 +64,95 @@ async function processCommission(saleId) {
     seller.lastActiveMonth = cycleMonth;
     await seller.save();
     // ── 2. HCM OVERRIDE ─────────────────────────────────────────────────────
+    // Skip HCM override if the seller IS an HCM (they already got 40% direct above)
     const hcmRate = await getCommissionRate('hcm_override_percent', 40);
     let hcm = null;
-    if (seller.referrerId) {
+    const sellerRank = (seller.rank || '').toUpperCase();
+    const isSellerHcmOrAbove = ['HCM', 'HBA', 'SH'].includes(sellerRank);
+    if (!isSellerHcmOrAbove && seller.referrerId) {
         hcm = await findNextExactUpline(seller.referrerId, 'HCM');
+    }
+    else if (sellerRank === 'HCM' && seller.referrerId) {
+        // Seller is HCM — look for HCM *above* them (breakaway scenario handled below)
+        // But skip self, go straight up to find HBA-level
+        console.log(`[Commission] Seller is HCM (${seller.memberId}) — skipping HCM self-override, looking for HBA upline`);
     }
     let hcmIncome = 0;
     if (hcm) {
         sale.hcmId = hcm._id;
-        hcmIncome = Math.round(directIncome * hcmRate);
-        await addToWallet({
-            userId: hcm._id,
-            amount: hcmIncome,
-            type: 'override',
-            description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
-            sourceUserId: seller._id,
-            status: 'provisional',
-            cycleMonth,
-        });
+        // Check if this is an HCM recruiting another HCM breakaway
+        let isBreakaway = false;
+        if (seller.rank === 'HCM' && hcm._id.toString() !== seller._id.toString()) {
+            isBreakaway = true;
+        }
+        else {
+            let curr = seller;
+            while (curr && curr.referrerId) {
+                if (curr.referrerId.toString() === hcm._id.toString()) {
+                    if (curr.rank === 'HCM') {
+                        isBreakaway = true;
+                    }
+                    break;
+                }
+                const refId = curr.referrerId;
+                curr = await User_1.default.findById(refId);
+            }
+        }
+        if (isBreakaway) {
+            console.log(`[Commission] ⚖️ Breakaway Split applied! HCM ${hcm.memberId} receives 20% override immediately, 20% held.`);
+            // Split the 40% override: 20% immediate, 20% held
+            const splitIncome = Math.round(directIncome * 0.20);
+            hcmIncome = splitIncome;
+            // 1. Pay the 20% immediate
+            await addToWallet({
+                userId: hcm._id,
+                amount: splitIncome,
+                type: 'override',
+                description: `HCM breakaway 20% immediate override from ${seller.memberId} - Policy ${sale.policyId}`,
+                sourceUserId: seller._id,
+                status: 'provisional',
+                cycleMonth,
+            });
+            // 2. Hold the remaining 20% to be released at HBA promotion
+            await addToWallet({
+                userId: hcm._id,
+                amount: splitIncome,
+                type: 'override',
+                description: `HCM breakaway 20% held override from ${seller.memberId} - Policy ${sale.policyId} (Releases at HBA Rank)`,
+                sourceUserId: seller._id,
+                status: 'held',
+                cycleMonth,
+            });
+        }
+        else {
+            hcmIncome = Math.round(directIncome * hcmRate);
+            await addToWallet({
+                userId: hcm._id,
+                amount: hcmIncome,
+                type: 'override',
+                description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
+                sourceUserId: seller._id,
+                status: 'provisional',
+                cycleMonth,
+            });
+        }
     }
     // ── 3. HBA OVERRIDE ─────────────────────────────────────────────────────
     const hbaRate = await getCommissionRate('hba_override_percent', 40);
     let hba = null;
-    const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : seller.referrerId;
-    if (searchStartForHba) {
-        hba = await findNextExactUpline(searchStartForHba, 'HBA');
+    // When seller is HBA or above, skip HBA override on self — go straight to SH
+    const isSellerHbaOrAbove = ['HBA', 'SH'].includes(sellerRank);
+    if (!isSellerHbaOrAbove) {
+        const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : seller.referrerId;
+        if (searchStartForHba) {
+            hba = await findNextExactUpline(searchStartForHba, 'HBA');
+        }
+    }
+    else {
+        // Seller is HBA or SH — their own upline for HBA override search starts from their referrer
+        if (seller.referrerId && sellerRank !== 'SH') {
+            hba = await findNextExactUpline(seller.referrerId, 'HBA');
+        }
     }
     let hbaIncome = 0;
     if (hba) {
@@ -164,11 +228,12 @@ async function addToWallet(entry) {
     });
     if (entry.status === 'provisional') {
         wallet.provisionalBalance += entry.amount;
+        wallet.totalEarned += entry.amount;
     }
-    else {
+    else if (entry.status === 'final') {
         wallet.finalBalance += entry.amount;
+        wallet.totalEarned += entry.amount;
     }
-    wallet.totalEarned += entry.amount;
     await wallet.save();
 }
 // ── Helper: findNextExactUpline ───────────────────────────────────────────────

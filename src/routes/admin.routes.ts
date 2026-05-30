@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, sendAnnouncement, verifyBankDetails } from '../controllers/admin.controller';
+import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails } from '../controllers/admin.controller';
 import { getAdminTree } from '../controllers/user.controller';
 import { getStatePerformance } from '../controllers/analytics.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -17,6 +17,7 @@ router.get('/kyc/pending', getPendingKYC);
 router.get('/bank-updates/pending', getPendingBankUpdates);
 router.put('/kyc/:id/status', updateKYCStatus);
 router.put('/users/:id/status', updateUserStatus);
+router.put('/users/:id/reset-password', resetUserPassword);
 router.put('/users/:id/bank-verify', verifyBankDetails);
 router.get('/tree', getAdminTree);
 router.post('/manual-adjustment', createManualAdjustment);

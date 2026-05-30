@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createNotification = exports.markAllAsRead = exports.markAsRead = exports.getNotifications = void 0;
+exports.clearNotifications = exports.createNotification = exports.markAllAsRead = exports.markAsRead = exports.getNotifications = void 0;
 const Notification_1 = __importDefault(require("../models/Notification"));
 const getNotifications = async (req, res) => {
     try {
@@ -55,3 +55,13 @@ const createNotification = async (userId, title, message, type = 'info', link) =
     }
 };
 exports.createNotification = createNotification;
+const clearNotifications = async (req, res) => {
+    try {
+        await Notification_1.default.deleteMany({ userId: req.user._id });
+        res.json({ success: true, message: 'All notifications cleared successfully' });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+exports.clearNotifications = clearNotifications;

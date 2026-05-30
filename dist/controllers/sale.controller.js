@@ -5,8 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getMySales = exports.createSale = void 0;
 const Sale_1 = __importDefault(require("../models/Sale"));
+const User_1 = __importDefault(require("../models/User"));
 const Plan_1 = __importDefault(require("../models/Plan"));
 const commission_1 = require("../lib/commission");
+const notification_controller_1 = require("./notification.controller");
 const createSale = async (req, res) => {
     try {
         const { customerName, customerMobile, planId } = req.body;
@@ -45,6 +47,16 @@ const createSale = async (req, res) => {
         (0, commission_1.processCommission)(newSale._id.toString()).catch(err => {
             console.error(`[Commission Error] Sale ${newSale._id}:`, err);
         });
+        // Trigger in-app notification to all admin users about the new sale!
+        try {
+            const admins = await User_1.default.find({ role: 'admin' });
+            for (const admin of admins) {
+                await (0, notification_controller_1.createNotification)(admin._id.toString(), 'New Sale Recorded', `Partner ${seller.name} (${seller.memberId}) recorded a new sale: ${plan.name} for ${customerName} (₹${(totalAmount / 100).toFixed(2)}).`, 'success', `/admin/sales`);
+            }
+        }
+        catch (notifErr) {
+            console.error('[Sale] Admin notification failed:', notifErr);
+        }
         return res.status(201).json({
             success: true,
             message: 'Sale recorded successfully. Commission processing started.',
@@ -107,23 +119,27 @@ const getMySales = async (req, res) => {
         const total = await Sale_1.default.countDocuments(query);
         // Apply Privacy: Only direct seller can see customer details
         const processedSales = sales.map((sale) => {
-            // Defensive check: if sellerId is missing (orphaned record), handle gracefully
-            if (!sale.sellerId) {
+            // Map sellerId to seller for frontend compatibility
+            const seller = sale.sellerId;
+            // If current user is NOT the seller, redact customer details
+            // Defensive check: if seller is missing (orphaned record), handle gracefully
+            if (!seller) {
                 return {
                     ...sale,
+                    seller: null,
                     customerName: 'N/A',
                     customerMobile: 'N/A',
                     customerEmail: 'N/A'
                 };
             }
-            // If current user is NOT the seller, redact customer details
-            const isSeller = sale.sellerId._id?.toString() === _id.toString();
+            const isSeller = seller._id?.toString() === _id.toString();
             const isAdmin = role === 'admin';
             if (isSeller || isAdmin) {
-                return sale;
+                return { ...sale, seller };
             }
             return {
                 ...sale,
+                seller,
                 customerName: 'PROTECTED',
                 customerMobile: '**********',
                 customerEmail: '***',

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkAndPromote = checkAndPromote;
 exports.runMonthlyActivityAudit = runMonthlyActivityAudit;
 const User_1 = __importDefault(require("../models/User"));
+const Wallet_1 = __importDefault(require("../models/Wallet"));
 /**
  * Auto-promotion engine.
  * Checks if user qualifies for rank upgrade after each sale.
@@ -17,9 +18,8 @@ async function checkAndPromote(userId) {
         return;
     // 1. HCC → HCM promotion
     if (user.rank === 'HCC') {
-        const directReferralsCount = await User_1.default.countDocuments({ referrerId: user._id });
-        // Criteria: 12 Personal Sales AND 12 Direct Referrals
-        if (user.personalSalesCount >= 12 && directReferralsCount >= 12) {
+        // Criteria: 12 Personal Sales of ₹1999 or above (tracked via personalSalesCount)
+        if (user.personalSalesCount >= 12) {
             console.log(`[RankEngine] User ${user.memberId} promoted to HCM`);
             user.rank = 'HCM';
             user.role = 'hcm';
@@ -43,6 +43,35 @@ async function checkAndPromote(userId) {
             user.rank = 'HBA';
             user.role = 'hba';
             await user.save();
+            // Release breakaway held commissions
+            try {
+                const wallet = await Wallet_1.default.findOne({ user: user._id });
+                if (wallet) {
+                    let totalReleased = 0;
+                    wallet.ledger.forEach((entry) => {
+                        if (entry.status === 'held') {
+                            entry.status = 'provisional'; // Release to provisional to go through settlement
+                            totalReleased += entry.amount;
+                        }
+                    });
+                    if (totalReleased > 0) {
+                        wallet.provisionalBalance += totalReleased;
+                        wallet.ledger.push({
+                            amount: 0,
+                            type: 'manual',
+                            description: `🔓 Released ₹${totalReleased / 100} breakaway commission upon HBA promotion!`,
+                            status: 'final',
+                            date: new Date(),
+                            cycleMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+                        });
+                        await wallet.save();
+                        console.log(`[RankEngine] Released ₹${totalReleased / 100} of held breakaway commissions to HBA ${user.memberId}`);
+                    }
+                }
+            }
+            catch (err) {
+                console.error('[RankEngine] Error releasing held commissions:', err);
+            }
             await sendPromotionNotification(user, 'HBA');
             return;
         }
