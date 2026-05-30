@@ -216,7 +216,7 @@ export const updateKYC = async (req: any, res: Response) => {
 
 export const getAllUsers = async (req: any, res: Response) => {
   try {
-    const { page = 1, limit = 20, search, role, state, refer } = req.query;
+    const { page = 1, limit = 20, search, role, state, refer, status, kycStatus } = req.query;
 
     let query: any = {};
     if (search) {
@@ -233,6 +233,14 @@ export const getAllUsers = async (req: any, res: Response) => {
 
     if (state) {
       query.state = state;
+    }
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (kycStatus) {
+      query.kycStatus = kycStatus;
     }
 
     if (refer) {
