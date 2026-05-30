@@ -8,7 +8,7 @@ import { createNotification } from './notification.controller';
 
 export const createSale = async (req: any, res: Response) => {
   try {
-    const { customerName, customerMobile, planId } = req.body;
+    const { customerName, customerMobile, planId, customerState } = req.body;
 
     // 1. Any role can record a sale (Personal Sale)
     const seller = req.user;
@@ -36,6 +36,7 @@ export const createSale = async (req: any, res: Response) => {
       plan: planId,
       customerName,
       customerMobile,
+      customerState: customerState || 'Maharashtra',
       saleAmount: totalAmount,
       businessVolume: plan.businessVolume,
       cycleMonth: getCurrentCycleMonth(),
