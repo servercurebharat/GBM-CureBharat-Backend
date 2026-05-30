@@ -11,13 +11,15 @@ import { checkRole } from '../middleware/role.middleware';
 
 const router = express.Router();
 
+import { upload } from '../middleware/upload.middleware';
+
 // Public/Member routes
 router.get('/', authMiddleware, getPlans);
 
 // Admin-only routes
 router.get('/admin/all', authMiddleware, checkRole(['admin']), getAllPlansAdmin);
-router.post('/', authMiddleware, checkRole(['admin']), createPlan);
-router.put('/:id', authMiddleware, checkRole(['admin']), updatePlan);
+router.post('/', authMiddleware, checkRole(['admin']), upload.single('brochure'), createPlan);
+router.put('/:id', authMiddleware, checkRole(['admin']), upload.single('brochure'), updatePlan);
 router.delete('/:id', authMiddleware, checkRole(['admin']), deletePlan);
 
 export default router;

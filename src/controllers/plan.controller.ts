@@ -33,7 +33,10 @@ export const getAllPlansAdmin = async (req: Request, res: Response) => {
  */
 export const createPlan = async (req: Request, res: Response) => {
   try {
-    const planData = req.body;
+    const planData = { ...req.body };
+    if (req.file) {
+      planData.brochureUrl = req.file.path;
+    }
     const newPlan = await Plan.create(planData);
     res.status(201).json({ success: true, data: newPlan });
   } catch (error: any) {
@@ -48,7 +51,10 @@ export const createPlan = async (req: Request, res: Response) => {
 export const updatePlan = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+    if (req.file) {
+      updates.brochureUrl = req.file.path;
+    }
     
     const plan = await Plan.findByIdAndUpdate(id, updates, { new: true });
     
