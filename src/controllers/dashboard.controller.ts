@@ -60,11 +60,29 @@ export const getDashboardSummary = async (req: any, res: Response) => {
       saleQuery.$and.push({ createdAt: { $gte: startDate } });
     }
 
-    const totalUsers = await User.countDocuments(userQuery);
-    const activeUsers = await User.countDocuments({ ...userQuery, status: 'active' });
-    const inactiveUsers = totalUsers - activeUsers;
+    const [
+      totalUsers,
+      activeUsers,
+      allSales,
+      stateStats,
+      roleDistribution
+    ] = await Promise.all([
+      User.countDocuments(userQuery),
+      User.countDocuments({ ...userQuery, status: 'active' }),
+      Sale.find(saleQuery),
+      Sale.aggregate([
+        { $match: saleQuery },
+        { $group: { _id: '$customerState', revenue: { $sum: '$saleAmount' } } },
+        { $sort: { revenue: -1 } },
+        { $limit: 5 }
+      ]),
+      User.aggregate([
+        { $match: userQuery },
+        { $group: { _id: '$role', count: { $sum: 1 } } }
+      ])
+    ]);
 
-    const allSales = await Sale.find(saleQuery);
+    const inactiveUsers = totalUsers - activeUsers;
     const totalRevenue = allSales.reduce((acc, s) => acc + s.saleAmount, 0);
 
     // Today's Sales (FTD)
@@ -100,22 +118,10 @@ export const getDashboardSummary = async (req: any, res: Response) => {
     }
 
     // 3. State Contribution (Dynamic)
-    const stateStats = await Sale.aggregate([
-      { $match: saleQuery },
-      { $group: { _id: '$customerState', revenue: { $sum: '$saleAmount' } } },
-      { $sort: { revenue: -1 } },
-      { $limit: 5 }
-    ]);
     const stateContribution = stateStats.map(s => ({ 
       state: s._id || 'Unknown', 
       revenue: s.revenue 
     }));
-
-    // 4. Role Distribution
-    const roleDistribution = await User.aggregate([
-      { $match: userQuery },
-      { $group: { _id: '$role', count: { $sum: 1 } } }
-    ]);
 
     // 5. Pending Withdrawals (Admin only)
     let pendingWithdrawals = [];
