@@ -216,7 +216,7 @@ export const updateKYC = async (req: any, res: Response) => {
 
 export const getAllUsers = async (req: any, res: Response) => {
   try {
-    const { page = 1, limit = 20, search, role, state, refer, status, kycStatus } = req.query;
+    const { page = 1, limit = 20, search, role, state, refer, status, kycStatus, sort } = req.query;
 
     let query: any = {};
     if (search) {
@@ -256,10 +256,13 @@ export const getAllUsers = async (req: any, res: Response) => {
       }
     }
 
+    // Determine sort order: 'oldest' = createdAt asc, default = createdAt desc (newest first)
+    const sortOrder = sort === 'oldest' ? 1 : -1;
+
     const users = await User.find(query)
       .select('-password')
       .populate('referrerId', 'name memberId')
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: sortOrder })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .lean() as any;

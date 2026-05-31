@@ -66,6 +66,7 @@ export const createSubscription = async (req: Request, res: Response) => {
     const returnUrl = `${baseUrl}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
 
     const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+    const finalPlanName = `CB ${safePlanName} Yr`.substring(0, 40).trim();
 
     // Step 3 — Create the Cashfree Subscription (mandate)
     const firstChargeDate = new Date();
@@ -77,7 +78,7 @@ export const createSubscription = async (req: Request, res: Response) => {
     const subPayload = {
       subscription_id:          subscriptionId,
       plan_details: {
-        plan_name:          `CureBharat ${safePlanName} Yearly`,
+        plan_name:          finalPlanName,
         plan_type:          'PERIODIC',
         plan_amount:        totalRupees,
         plan_max_amount:    totalRupees,
