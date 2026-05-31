@@ -18,4 +18,9 @@ router.post('/register', optionalAuthMiddleware, register);
 router.get('/me', authMiddleware, getMe);
 router.post('/change-password', authMiddleware, changePassword);
 
+// Password Reset Flow
+import { forgotPassword, resetPassword } from '../controllers/auth.controller';
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+
 export default router;

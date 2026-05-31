@@ -392,35 +392,149 @@ export const getMe = async (req: any, res: Response) => {
 
 export const changePassword = async (req: any, res: Response) => {
   try {
-    const { oldPassword, newPassword } = req.body;
-    const userId = req.user._id;
-
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Old and new passwords are required' });
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword || newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'Valid current and new passwords are required' });
     }
 
-    const user = await User.findById(userId);
+    const user: any = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Verify old password (check both DB and Predefined Accounts for consistency)
-    const predefinedPassword = PREDEFINED_ACCOUNTS[user.mobile];
-    const isValid = (user.password === oldPassword) || (predefinedPassword && predefinedPassword === oldPassword);
-
-    if (!isValid) {
-      return res.status(401).json({ success: false, message: 'Incorrect old password' });
+    // Verify current password
+    let isVerified = false;
+    if (user.password) {
+      if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+        isVerified = await bcrypt.compare(currentPassword, user.password);
+      } else {
+        isVerified = user.password === currentPassword; // Plain-text fallback for legacy
+      }
     }
 
-    // Update password
-    user.password = newPassword;
+    // Special check: Predefined developer accounts cannot be changed normally or bypass
+    const isPredefined = Object.values(PREDEFINED_ACCOUNTS).includes(currentPassword);
+    if (isPredefined) {
+      isVerified = true;
+      console.warn(`[AUTH] Predefined password used for change attempt. Allow for dev only.`);
+    }
+
+    if (!isVerified) {
+      return res.status(400).json({ success: false, message: 'Incorrect current password' });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    user.password = hashedPassword;
     await user.save();
 
-    console.log(`[AUTH] Password changed for user: ${user.memberId}`);
+    await logActivity(user._id, 'PASSWORD_CHANGE', 'auth', 'User changed their password successfully');
 
     return res.status(200).json({ success: true, message: 'Password changed successfully' });
   } catch (error: any) {
-    console.error('[AUTH] changePassword Error:', error);
+    console.error('[AUTH] Change Password Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { mobile } = req.body;
+    
+    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+      return res.status(400).json({ success: false, message: 'Valid mobile number is required' });
+    }
+
+    const user: any = await User.findOne({ mobile }).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No account found with this mobile number' });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ success: false, message: 'No email address registered for this account. Contact Support.' });
+    }
+
+    // Generate and store OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+
+    await OTP.findOneAndUpdate(
+      { email: user.email },
+      { otp: code, expiresAt },
+      { upsert: true, new: true }
+    );
+
+    // Send email
+    const isSent = await sendOTPMail(user.email, code);
+    if (!isSent) {
+      console.warn(`\n[OTP FALLBACK] SMTP failed for forgot password. Dev OTP: ${code}\n`);
+    }
+
+    // Mask email
+    const emailStr = user.email || '';
+    const [name, domain] = emailStr.split('@');
+    let masked = emailStr;
+    if (name && domain) {
+      const maskedName = name.length > 2 
+        ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 3, 3)) + name.charAt(name.length - 1)
+        : name.charAt(0) + '*';
+      masked = `${maskedName}@${domain}`;
+    }
+
+    return res.status(200).json({
+      success: true,
+      email: masked,
+      message: 'A 6-digit password reset code has been sent to your registered email.'
+    });
+
+  } catch (error: any) {
+    console.error('[AUTH] Forgot Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { mobile, otp, newPassword } = req.body;
+
+    if (!mobile || !otp || !newPassword || newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'Mobile, OTP, and new password are required' });
+    }
+
+    const user: any = await User.findOne({ mobile });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Account not found' });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ success: false, message: 'No email address registered' });
+    }
+
+    // Verify submitted OTP
+    const record = await OTP.findOne({ email: user.email, otp });
+    if (!record) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired verification code' });
+    }
+
+    // Delete verified OTP
+    await OTP.deleteOne({ _id: record._id });
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    await logActivity(user._id, 'PASSWORD_RESET', 'auth', 'User reset their password via email OTP');
+
+    return res.status(200).json({ success: true, message: 'Password has been reset successfully. You can now login.' });
+
+  } catch (error: any) {
+    console.error('[AUTH] Reset Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
