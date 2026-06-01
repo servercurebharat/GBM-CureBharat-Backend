@@ -92,6 +92,9 @@ export const createOrder = async (req: Request, res: Response) => {
 
     const orderId = `CB_SALE_${Date.now()}_${seller.memberId.replace('-', '')}`;
 
+    let backendUrl = (process.env.BACKEND_URL || 'http://localhost:4000').trim();
+    if (!backendUrl.startsWith('http')) backendUrl = `https://${backendUrl}`;
+
     const orderRequest: CreateOrderRequest = {
       order_id:       orderId,
       order_amount:   totalRupees,
@@ -104,7 +107,7 @@ export const createOrder = async (req: Request, res: Response) => {
       },
       order_meta: {
         return_url: `${(process.env.CASHFREE_RETURN_URL || '').trim()}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
-        notify_url: `${(process.env.BACKEND_URL || 'http://localhost:4000').trim()}/api/public/webhook`,
+        notify_url: `${backendUrl}/api/public/webhook`,
       },
       order_tags: {
         planId:   planId.toString(),
