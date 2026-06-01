@@ -11,7 +11,7 @@ const commission_1 = require("../lib/commission");
 const notification_controller_1 = require("./notification.controller");
 const createSale = async (req, res) => {
     try {
-        const { customerName, customerMobile, planId } = req.body;
+        const { customerName, customerMobile, planId, customerState } = req.body;
         // 1. Any role can record a sale (Personal Sale)
         const seller = req.user;
         // 2. Fetch Plan
@@ -33,6 +33,7 @@ const createSale = async (req, res) => {
             plan: planId,
             customerName,
             customerMobile,
+            customerState: customerState || 'Maharashtra',
             saleAmount: totalAmount,
             businessVolume: plan.businessVolume,
             cycleMonth: (0, commission_1.getCurrentCycleMonth)(),

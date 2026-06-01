@@ -58,54 +58,65 @@ const getDashboardSummary = async (req, res) => {
             saleQuery.$and = saleQuery.$and || [];
             saleQuery.$and.push({ createdAt: { $gte: startDate } });
         }
-        const totalUsers = await User_1.default.countDocuments(userQuery);
-        const activeUsers = await User_1.default.countDocuments({ ...userQuery, status: 'active' });
-        const inactiveUsers = totalUsers - activeUsers;
-        const allSales = await Sale_1.default.find(saleQuery);
-        const totalRevenue = allSales.reduce((acc, s) => acc + s.saleAmount, 0);
-        // Today's Sales (FTD)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const todaySales = allSales.filter(s => new Date(s.createdAt) >= today);
-        const ftdRevenue = todaySales.reduce((acc, s) => acc + s.saleAmount, 0);
-        // Current Month Sales (MTD)
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthSales = allSales.filter(s => new Date(s.createdAt) >= startOfMonth);
-        const mtdRevenue = monthSales.reduce((acc, s) => acc + s.saleAmount, 0);
+        const [totalUsers, activeUsers, revenueStats, stateStats, roleDistribution] = await Promise.all([
+            User_1.default.countDocuments(userQuery),
+            User_1.default.countDocuments({ ...userQuery, status: 'active' }),
+            Sale_1.default.aggregate([
+                { $match: saleQuery },
+                {
+                    $group: {
+                        _id: null,
+                        totalRevenue: { $sum: '$saleAmount' },
+                        ftdRevenue: {
+                            $sum: { $cond: [{ $gte: ['$createdAt', today] }, '$saleAmount', 0] }
+                        },
+                        mtdRevenue: {
+                            $sum: { $cond: [{ $gte: ['$createdAt', startOfMonth] }, '$saleAmount', 0] }
+                        }
+                    }
+                }
+            ]),
+            Sale_1.default.aggregate([
+                { $match: saleQuery },
+                { $group: { _id: '$customerState', revenue: { $sum: '$saleAmount' } } },
+                { $sort: { revenue: -1 } },
+                { $limit: 5 }
+            ]),
+            User_1.default.aggregate([
+                { $match: userQuery },
+                { $group: { _id: '$role', count: { $sum: 1 } } }
+            ])
+        ]);
+        const inactiveUsers = totalUsers - activeUsers;
+        const totalRevenue = revenueStats[0]?.totalRevenue || 0;
+        const ftdRevenue = revenueStats[0]?.ftdRevenue || 0;
+        const mtdRevenue = revenueStats[0]?.mtdRevenue || 0;
         // 2. Revenue Trends (Last 5 Weeks)
-        const weeklyRevenue = [];
-        for (let i = 4; i >= 0; i--) {
+        const weeklyRevenue = await Promise.all(Array.from({ length: 5 }).map(async (_, i) => {
             const start = new Date();
             start.setDate(today.getDate() - (i * 7 + today.getDay()));
             start.setHours(0, 0, 0, 0);
             const end = new Date(start);
             end.setDate(start.getDate() + 6);
             end.setHours(23, 59, 59, 999);
-            const weekSales = allSales.filter(s => {
-                const d = new Date(s.createdAt);
-                return d >= start && d <= end;
-            });
-            weeklyRevenue.push({
+            const weekAgg = await Sale_1.default.aggregate([
+                { $match: { ...saleQuery, createdAt: { $gte: start, $lte: end } } },
+                { $group: { _id: null, revenue: { $sum: '$saleAmount' } } }
+            ]);
+            return {
                 label: i === 0 ? 'Current' : `WK ${5 - i}`,
-                revenue: weekSales.reduce((acc, s) => acc + s.saleAmount, 0)
-            });
-        }
+                revenue: weekAgg[0]?.revenue || 0
+            };
+        }));
+        weeklyRevenue.reverse(); // So it goes from WK 1 -> Current
         // 3. State Contribution (Dynamic)
-        const stateStats = await Sale_1.default.aggregate([
-            { $match: saleQuery },
-            { $group: { _id: '$customerState', revenue: { $sum: '$saleAmount' } } },
-            { $sort: { revenue: -1 } },
-            { $limit: 5 }
-        ]);
         const stateContribution = stateStats.map(s => ({
             state: s._id || 'Unknown',
             revenue: s.revenue
         }));
-        // 4. Role Distribution
-        const roleDistribution = await User_1.default.aggregate([
-            { $match: userQuery },
-            { $group: { _id: '$role', count: { $sum: 1 } } }
-        ]);
         // 5. Pending Withdrawals (Admin only)
         let pendingWithdrawals = [];
         if (role === 'admin') {
@@ -185,13 +196,16 @@ const getTopLeaders = async (req, res) => {
                 nextRole = 'hcc';
             const directCount = nextRole ? await User_1.default.countDocuments({ referrerId: m._id, role: nextRole }) : 0;
             // Team Sales
-            const sales = await Sale_1.default.find({
-                $and: [
-                    { status: 'active' },
-                    { $or: [{ sellerId: m._id }, { hcmId: m._id }, { hbaId: m._id }, { shId: m._id }] }
-                ]
-            });
-            const teamSalesValue = sales.reduce((acc, s) => acc + s.saleAmount, 0);
+            const salesAgg = await Sale_1.default.aggregate([
+                {
+                    $match: {
+                        status: 'active',
+                        $or: [{ sellerId: m._id }, { hcmId: m._id }, { hbaId: m._id }, { shId: m._id }]
+                    }
+                },
+                { $group: { _id: null, total: { $sum: '$saleAmount' } } }
+            ]);
+            const teamSalesValue = salesAgg[0]?.total || 0;
             return {
                 _id: m._id,
                 name: m.name,

@@ -249,7 +249,7 @@ export const register = async (req: any, res: Response) => {
 
     // Define Allowed Target Roles
     const permissions: Record<string, string[]> = {
-      'admin': ['sh', 'hba', 'hcm', 'hcc'],
+      'admin': ['admin', 'sh', 'hba', 'hcm', 'hcc'],
       'sh': ['hba', 'hcm', 'hcc'],
       'hba': ['hcm', 'hcc'],
       'hcm': ['hcc'],
@@ -264,6 +264,13 @@ export const register = async (req: any, res: Response) => {
     // Normalize hcb -> hba for database compatibility
     if (roleToAssign === 'hcb') {
       roleToAssign = 'hba';
+    }
+    
+    if (roleToAssign === 'admin') {
+      const SUPER_ADMINS = ['8269210100', '9689509651'];
+      if (!requester || !SUPER_ADMINS.includes(requester.mobile)) {
+        return res.status(403).json({ success: false, message: 'Only Super Admins can create a new Admin account.' });
+      }
     }
     
     if (requesterRole !== 'admin' && !allowedRoles.includes(roleToAssign)) {

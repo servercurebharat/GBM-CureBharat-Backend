@@ -39,18 +39,39 @@ const getMyWallet = async (req, res) => {
             }
         });
         // Fetch Withdrawal Stats
-        const pendingWithdrawals = await Withdrawal_1.default.find({ user: req.user._id, status: { $in: ['pending', 'processing'] } });
-        const successfulWithdrawals = await Withdrawal_1.default.find({ user: req.user._id, status: 'success' });
+        const withdrawalStats = await Withdrawal_1.default.aggregate([
+            { $match: { user: req.user._id } },
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 },
+                    totalValue: { $sum: '$grossAmount' },
+                    totalTDS: { $sum: { $ifNull: ['$tdsAmount', 0] } }
+                }
+            }
+        ]);
+        let pendingCount = 0;
+        let pendingValue = 0;
+        let successfulCount = 0;
+        let successfulValue = 0;
+        let totalTDS = 0;
+        withdrawalStats.forEach(stat => {
+            totalTDS += stat.totalTDS;
+            if (stat._id === 'pending' || stat._id === 'processing') {
+                pendingCount += stat.count;
+                pendingValue += stat.totalValue;
+            }
+            else if (stat._id === 'success') {
+                successfulCount += stat.count;
+                successfulValue += stat.totalValue;
+            }
+        });
         // Fetch Total Sales Value
-        const sales = await Sale_1.default.find({ sellerId: req.user._id });
-        const totalSalesValue = sales.reduce((acc, sale) => acc + sale.saleAmount, 0);
-        // Calculate TDS
-        const withdrawalRecords = await Withdrawal_1.default.find({ user: req.user._id });
-        const totalTDS = withdrawalRecords.reduce((acc, w) => acc + (w.tdsAmount || 0), 0);
-        const pendingCount = pendingWithdrawals.length;
-        const pendingValue = pendingWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
-        const successfulCount = successfulWithdrawals.length;
-        const successfulValue = successfulWithdrawals.reduce((acc, w) => acc + w.grossAmount, 0);
+        const salesAgg = await Sale_1.default.aggregate([
+            { $match: { sellerId: req.user._id } },
+            { $group: { _id: null, total: { $sum: '$saleAmount' } } }
+        ]);
+        const totalSalesValue = salesAgg[0]?.total || 0;
         return res.status(200).json({
             success: true,
             data: {
@@ -287,15 +308,28 @@ const getAllWithdrawalRequests = async (req, res) => {
         if (req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Admin access required' });
         }
-        const { status = 'pending' } = req.query;
+        const { status = 'pending', page = 1, limit = 50 } = req.query;
+        const pageNum = Number(page);
+        const limitNum = Number(limit);
         const filter = {};
         if (status && status !== 'all')
             filter.status = status;
         const withdrawals = await Withdrawal_1.default.find(filter)
             .populate('user', 'name memberId role kycStatus state')
             .sort({ requestedAt: -1 })
+            .skip((pageNum - 1) * limitNum)
+            .limit(limitNum)
             .lean();
-        return res.status(200).json({ success: true, data: withdrawals });
+        const total = await Withdrawal_1.default.countDocuments(filter);
+        return res.status(200).json({
+            success: true,
+            data: withdrawals,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum
+            }
+        });
     }
     catch (error) {
         console.error('[Wallet] getAllWithdrawalRequests Error:', error);

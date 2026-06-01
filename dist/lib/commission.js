@@ -54,7 +54,7 @@ async function processCommission(saleId) {
         userId: seller._id,
         amount: directIncome,
         type: 'direct',
-        description: `Direct commission - Policy ${sale.policyId}`,
+        description: `Direct commission from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
         sourceUserId: seller._id,
         status: 'provisional',
         cycleMonth,
@@ -108,7 +108,7 @@ async function processCommission(saleId) {
                 userId: hcm._id,
                 amount: splitIncome,
                 type: 'override',
-                description: `HCM breakaway 20% immediate override from ${seller.memberId} - Policy ${sale.policyId}`,
+                description: `HCM breakaway 20% immediate override from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
                 sourceUserId: seller._id,
                 status: 'provisional',
                 cycleMonth,
@@ -118,7 +118,7 @@ async function processCommission(saleId) {
                 userId: hcm._id,
                 amount: splitIncome,
                 type: 'override',
-                description: `HCM breakaway 20% held override from ${seller.memberId} - Policy ${sale.policyId} (Releases at HBA Rank)`,
+                description: `HCM breakaway 20% held override from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId} (Releases at HBA Rank)`,
                 sourceUserId: seller._id,
                 status: 'held',
                 cycleMonth,
@@ -130,7 +130,7 @@ async function processCommission(saleId) {
                 userId: hcm._id,
                 amount: hcmIncome,
                 type: 'override',
-                description: `HCM override from ${seller.memberId} - Policy ${sale.policyId}`,
+                description: `HCM override from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
                 sourceUserId: seller._id,
                 status: 'provisional',
                 cycleMonth,
@@ -159,11 +159,12 @@ async function processCommission(saleId) {
         sale.hbaId = hba._id;
         const potentialHcmIncome = Math.round(directIncome * hcmRate);
         hbaIncome = Math.round(potentialHcmIncome * hbaRate);
+        const hbaSourceUser = hcm || seller;
         await addToWallet({
             userId: hba._id,
             amount: hbaIncome,
             type: 'override',
-            description: `HBA override from ${hcm ? hcm.memberId : seller.memberId} - Policy ${sale.policyId}`,
+            description: `HBA override from ${hbaSourceUser.name} (${hbaSourceUser.memberId}) - Policy ${sale.policyId}`,
             sourceUserId: seller._id,
             status: 'provisional',
             cycleMonth,
@@ -181,11 +182,12 @@ async function processCommission(saleId) {
     if (sh) {
         sale.shId = sh._id;
         const shIncome = Math.round(baseAmount * shRate);
+        const shSourceUser = hba || hcm || seller;
         await addToWallet({
             userId: sh._id,
             amount: shIncome,
             type: 'leadership',
-            description: `SH leadership bonus - Policy ${sale.policyId}`,
+            description: `SH leadership bonus from ${shSourceUser.name} (${shSourceUser.memberId}) - Policy ${sale.policyId}`,
             sourceUserId: seller._id,
             status: 'provisional',
             cycleMonth,
@@ -225,6 +227,7 @@ async function addToWallet(entry) {
         cycleMonth: entry.cycleMonth,
         status: entry.status,
         date: new Date(),
+        sourceUserId: entry.sourceUserId,
     });
     if (entry.status === 'provisional') {
         wallet.provisionalBalance += entry.amount;

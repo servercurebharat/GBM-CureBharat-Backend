@@ -43,7 +43,7 @@ const createOrder = async (req, res) => {
                 customer_phone: user.mobile || user.phone || '9999999999',
             },
             order_meta: {
-                return_url: `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace('/api', '')}/payment/status?order_id={order_id}`,
+                return_url: `${req.body.returnUrl || process.env.CASHFREE_RETURN_URL?.replace('/buy/success', '/payment/status') || 'http://localhost:3000/payment/status'}?order_id={order_id}`,
                 notify_url: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/payment/webhook`,
             },
             order_tags: {

@@ -5,7 +5,9 @@ import User from '../models/User';
 import Plan from '../models/Plan';
 import Sale from '../models/Sale';
 import Wallet from '../models/Wallet';
+import OTP from '../models/OTP';
 import { processCommission, getCurrentCycleMonth } from '../lib/commission';
+import { sendOTPMail } from '../lib/mailer';
 
 // ─────────────────────────────────────────────
 // Initialize Cashfree SDK (singleton)
@@ -153,8 +155,11 @@ export const verifyPayment = async (req: Request, res: Response) => {
       customerMobile,
       customerEmail,
       customerState,
+      customerDOB,
+      customerPAN,
       nomineeName,
       nomineeRelation,
+      enrollmentType = 'customer',   // 'customer' or 'distributor'
       sourceType = 'public_link',
     } = req.body;
 
@@ -229,8 +234,11 @@ export const verifyPayment = async (req: Request, res: Response) => {
       customerMobile,
       customerEmail,
       customerState,
+      customerDOB,
+      customerPAN:       customerPAN ? customerPAN.toUpperCase() : undefined,
       nomineeName,
       nomineeRelation,
+      enrollmentType,
       saleAmount:        totalPaise,
       businessVolume:    plan.businessVolume,
       cycleMonth:        getCurrentCycleMonth(),
@@ -245,63 +253,68 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
     console.log(`[Public] Sale created: ${policyId} | Seller: ${seller.memberId} | Plan: ${plan.name}`);
 
-    // ── Create User Account (with race-condition protection) ──────────────
-    let newUserAccount: any = await User.findOne({ mobile: customerMobile });
+    // ── Create User Account (only for Distributors, with race-condition protection) ──
+    let newUserAccount: any = null;
     let createdNewUser = false;
 
-    if (!newUserAccount) {
-      console.log(`[Public] Creating new user account for ${customerMobile}`);
+    if (enrollmentType === 'distributor') {
+      newUserAccount = await User.findOne({ mobile: customerMobile });
 
-      const lastHCC = await User.findOne({ role: 'hcc' }).sort({ createdAt: -1 });
-      let nextNum = 1001;
-      if (lastHCC && lastHCC.memberId) {
-        const match = lastHCC.memberId.match(/\d+$/);
-        if (match) nextNum = parseInt(match[0]) + 1;
-      }
-      const newMemberId = `CB-HCC-${nextNum}`;
+      if (!newUserAccount) {
+        console.log(`[Public] Creating new HCC account for distributor ${customerMobile}`);
 
-      try {
-        const toCreate = new User({
-          name:       customerName,
-          mobile:     customerMobile,
-          email:      customerEmail,
-          state:      customerState || 'Maharashtra',
-          password:   '123456',
-          memberId:   newMemberId,
-          referrerId: seller._id,
-          role:       'hcc',
-          rank:       'HCC',
-          status:     'active',
-          kycStatus:  'not_submitted',
-        });
-        await toCreate.save();
-        newUserAccount = toCreate;
-        await Wallet.create({ user: newUserAccount._id });
-        createdNewUser = true;
-
-        await User.findByIdAndUpdate(seller._id, { $inc: { personalRecruitsThisMonth: 1 } });
-
-        // Update recursive team size up the hierarchy
-        let currentRefId = seller._id;
-        while (currentRefId) {
-          const refUser = await User.findById(currentRefId);
-          if (!refUser) break;
-          refUser.teamSize = (refUser.teamSize || 0) + 1;
-          await refUser.save();
-          currentRefId = refUser.referrerId;
+        const lastHCC = await User.findOne({ role: 'hcc' }).sort({ createdAt: -1 });
+        let nextNum = 1001;
+        if (lastHCC && lastHCC.memberId) {
+          const match = lastHCC.memberId.match(/\d+$/);
+          if (match) nextNum = parseInt(match[0]) + 1;
         }
-        console.log(`[Public] User account created: ${newMemberId} for ${customerName}`);
+        const newMemberId = `CB-HCC-${nextNum}`;
 
-      } catch (createErr: any) {
-        if (createErr.code === 11000) {
-          // Race condition: another concurrent request already created this user
-          console.warn(`[Public] Race condition on user creation for ${customerMobile} — fetching existing user`);
-          newUserAccount = await User.findOne({ mobile: customerMobile });
-          createdNewUser = false;
-        } else {
-          throw createErr; // Re-throw unexpected errors
+        try {
+          const toCreate = new User({
+            name:       customerName,
+            mobile:     customerMobile,
+            email:      customerEmail,
+            state:      customerState || 'Maharashtra',
+            password:   '123456',
+            memberId:   newMemberId,
+            referrerId: seller._id,
+            role:       'hcc',
+            rank:       'HCC',
+            status:     'active',
+            kycStatus:  'not_submitted',
+          });
+          await toCreate.save();
+          newUserAccount = toCreate;
+          await Wallet.create({ user: newUserAccount._id });
+          createdNewUser = true;
+
+          await User.findByIdAndUpdate(seller._id, { $inc: { personalRecruitsThisMonth: 1 } });
+
+          // Update recursive team size up the hierarchy
+          let currentRefId = seller._id;
+          while (currentRefId) {
+            const refUser = await User.findById(currentRefId);
+            if (!refUser) break;
+            refUser.teamSize = (refUser.teamSize || 0) + 1;
+            await refUser.save();
+            currentRefId = refUser.referrerId;
+          }
+          console.log(`[Public] HCC account created: ${newMemberId} for ${customerName}`);
+
+        } catch (createErr: any) {
+          if (createErr.code === 11000) {
+            console.warn(`[Public] Race condition on user creation for ${customerMobile} — fetching existing user`);
+            newUserAccount = await User.findOne({ mobile: customerMobile });
+            createdNewUser = false;
+          } else {
+            throw createErr;
+          }
         }
       }
+    } else {
+      console.log(`[Public] Customer-only enrollment for ${customerMobile} — no account created`);
     }
 
     // ── Trigger Commission (async) ─────────────────────────────────────────
@@ -375,5 +388,114 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[PublicWebhook] Error:', error.message);
     return res.status(500).json({ success: false });
+  }
+};
+
+// ─── GET /api/public/check-mobile/:mobile ────────────────────────────────────
+// Checks if a mobile number is already registered in the system
+export const checkMobile = async (req: Request, res: Response) => {
+  try {
+    const { mobile } = req.params;
+    if (!mobile || mobile.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Invalid mobile number' });
+    }
+
+    let user = await User.findOne({ mobile }).select('name memberId role').lean() as any;
+    
+    // Find all active sales for this mobile to determine the highest plan price they own
+    const userSales = await Sale.find({ customerMobile: mobile, status: 'active' }).populate('plan').lean() as any[];
+    let highestPlanPrice = 0;
+    if (userSales && userSales.length > 0) {
+      for (const sale of userSales) {
+        if (sale.plan && sale.plan.price > highestPlanPrice) {
+          highestPlanPrice = sale.plan.price;
+        }
+      }
+    }
+
+    if (user || highestPlanPrice > 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          exists: !!user,
+          name: user ? user.name : (userSales[0]?.customerName || ''),
+          memberId: user ? user.memberId : undefined,
+          role: user ? user.role : 'customer',
+          highestPlanPrice,
+        },
+      });
+    }
+
+    return res.status(200).json({ success: true, data: { exists: false, highestPlanPrice: 0 } });
+  } catch (error: any) {
+    console.error('[Public] checkMobile Error:', error.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── POST /api/public/send-otp ───────────────────────────────────────────────
+// Sends a 6-digit OTP to an email for enrollment verification
+export const sendEmailOTP = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ success: false, message: 'Valid email is required' });
+    }
+
+    // Rate limit: max 3 OTPs per email in 15 minutes
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const recentCount = await OTP.countDocuments({ email, createdAt: { $gte: fifteenMinutesAgo } });
+    if (recentCount >= 3) {
+      return res.status(429).json({ success: false, message: 'Too many OTP requests. Please wait 15 minutes.' });
+    }
+
+    // Delete any existing OTP for this email before creating new one
+    await OTP.deleteMany({ email });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    await OTP.create({ email, otp, expiresAt });
+
+    const sent = await sendOTPMail(email, otp);
+    if (!sent) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please check your email address.' });
+    }
+
+    console.log(`[Public] Email OTP sent to ${email}`);
+    return res.status(200).json({ success: true, message: `OTP sent to ${email}` });
+  } catch (error: any) {
+    console.error('[Public] sendEmailOTP Error:', error.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── POST /api/public/verify-otp ─────────────────────────────────────────────
+// Verifies the OTP entered by user
+export const verifyEmailOTP = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+    }
+
+    const record = await OTP.findOne({ email, otp });
+    if (!record) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP. Please try again.' });
+    }
+
+    if (record.expiresAt < new Date()) {
+      await OTP.deleteOne({ _id: record._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    // OTP is valid — delete it so it can't be reused
+    await OTP.deleteOne({ _id: record._id });
+
+    console.log(`[Public] Email OTP verified for ${email}`);
+    return res.status(200).json({ success: true, message: 'Email verified successfully' });
+  } catch (error: any) {
+    console.error('[Public] verifyEmailOTP Error:', error.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 };

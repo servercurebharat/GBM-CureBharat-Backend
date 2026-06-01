@@ -6,8 +6,11 @@ export interface ISale extends Document {
   customerMobile: string;
   customerEmail?: string;
   customerState?: string;
+  customerDOB?: string;          // Date of birth DD/MM/YYYY
+  customerPAN?: string;          // PAN number (uppercase)
   nomineeName?: string;
   nomineeRelation?: string;
+  enrollmentType: 'customer' | 'distributor';  // customer = policy only, distributor = gets HCC account
   plan: mongoose.Types.ObjectId;
   saleAmount: number;        // total billed in paise (price + GST)
   businessVolume: number;    // commission base in paise
@@ -46,8 +49,11 @@ const saleSchema = new Schema<ISale>({
   customerMobile:   { type: String, required: true },
   customerEmail:    { type: String },
   customerState:    { type: String },
+  customerDOB:      { type: String },
+  customerPAN:      { type: String },
   nomineeName:      { type: String },
   nomineeRelation:  { type: String },
+  enrollmentType:   { type: String, enum: ['customer', 'distributor'], default: 'customer' },
   plan:             { type: Schema.Types.ObjectId, ref: 'Plan', required: true },
   saleAmount:       { type: Number, required: true },
   businessVolume:   { type: Number, required: true },

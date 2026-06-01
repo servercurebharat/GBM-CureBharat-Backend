@@ -35,6 +35,9 @@ export const createSubscription = async (req: Request, res: Response) => {
       customerMobile,
       customerEmail,
       customerState,
+      customerDOB,
+      customerPAN,
+      enrollmentType,
       nomineeName,
       nomineeRelation,
     } = req.body;
@@ -63,7 +66,8 @@ export const createSubscription = async (req: Request, res: Response) => {
     const subscriptionId = `cb_sub_${Date.now()}_${seller.memberId.replace(/-/g, '')}`;
 
     const baseUrl = req.body.returnUrl || process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success';
-    const returnUrl = `${baseUrl}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const returnUrl = `${baseUrl}${separator}subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
 
     const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
     const finalPlanName = `CB ${safePlanName} Yr`.substring(0, 40).trim();
@@ -128,6 +132,9 @@ export const createSubscription = async (req: Request, res: Response) => {
       customerMobile,
       customerEmail,
       customerState:          customerState || 'Maharashtra',
+      customerDOB,
+      customerPAN,
+      enrollmentType:         enrollmentType || 'customer',
       nomineeName,
       nomineeRelation,
       saleAmount:             totalPaise,

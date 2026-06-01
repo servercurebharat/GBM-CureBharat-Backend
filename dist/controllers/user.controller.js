@@ -206,7 +206,7 @@ const updateKYC = async (req, res) => {
 exports.updateKYC = updateKYC;
 const getAllUsers = async (req, res) => {
     try {
-        const { page = 1, limit = 20, search, role, state, refer } = req.query;
+        const { page = 1, limit = 20, search, role, state, refer, status, kycStatus, sort } = req.query;
         let query = {};
         if (search) {
             query.$or = [
@@ -221,6 +221,12 @@ const getAllUsers = async (req, res) => {
         if (state) {
             query.state = state;
         }
+        if (status) {
+            query.status = status;
+        }
+        if (kycStatus) {
+            query.kycStatus = kycStatus;
+        }
         if (refer) {
             // refer could be memberId or name
             const referrer = await User_1.default.findOne({
@@ -233,10 +239,12 @@ const getAllUsers = async (req, res) => {
                 query.referrerId = referrer._id;
             }
         }
+        // Determine sort order: 'oldest' = createdAt asc, default = createdAt desc (newest first)
+        const sortOrder = sort === 'oldest' ? 1 : -1;
         const users = await User_1.default.find(query)
             .select('-password')
             .populate('referrerId', 'name memberId')
-            .sort({ createdAt: -1 })
+            .sort({ createdAt: sortOrder })
             .skip((Number(page) - 1) * Number(limit))
             .limit(Number(limit))
             .lean();

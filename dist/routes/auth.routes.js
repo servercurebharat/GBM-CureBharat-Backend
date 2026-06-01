@@ -14,4 +14,8 @@ router.post('/verify-otp', auth_controller_1.verifyOTP);
 router.post('/register', auth_middleware_1.optionalAuthMiddleware, auth_controller_1.register);
 router.get('/me', auth_middleware_1.authMiddleware, auth_controller_1.getMe);
 router.post('/change-password', auth_middleware_1.authMiddleware, auth_controller_1.changePassword);
+// Password Reset Flow
+const auth_controller_2 = require("../controllers/auth.controller");
+router.post('/forgot-password', auth_controller_2.forgotPassword);
+router.post('/reset-password', auth_controller_2.resetPassword);
 exports.default = router;

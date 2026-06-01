@@ -42,6 +42,7 @@ const planSchema = new mongoose_1.Schema({
     isCommissionable: { type: Boolean, default: true },
     gstPercent: { type: Number, default: 18 },
     description: { type: String },
+    brochureUrl: { type: String },
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 exports.default = mongoose_1.default.models.Plan || mongoose_1.default.model('Plan', planSchema);

@@ -29,7 +29,7 @@ const CF_HEADERS = {
 // ─────────────────────────────────────────────────────────────────────────────
 const createSubscription = async (req, res) => {
     try {
-        const { planId, refCode, customerName, customerMobile, customerEmail, customerState, nomineeName, nomineeRelation, } = req.body;
+        const { planId, refCode, customerName, customerMobile, customerEmail, customerState, customerDOB, customerPAN, enrollmentType, nomineeName, nomineeRelation, } = req.body;
         if (!planId || !refCode || !customerName || !customerMobile) {
             return res.status(400).json({ success: false, message: 'planId, refCode, customerName, customerMobile are required' });
         }
@@ -48,8 +48,10 @@ const createSubscription = async (req, res) => {
         const totalRupees = totalPaise / 100;
         // Step 2 — Generate unique subscription ID
         const subscriptionId = `cb_sub_${Date.now()}_${seller.memberId.replace(/-/g, '')}`;
-        const returnUrl = `${process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success'}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
+        const baseUrl = req.body.returnUrl || process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success';
+        const returnUrl = `${baseUrl}?subscription_id=${subscriptionId}&ref=${refCode}&plan=${planId}`;
         const safePlanName = plan.name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+        const finalPlanName = `CB ${safePlanName} Yr`.substring(0, 40).trim();
         // Step 3 — Create the Cashfree Subscription (mandate)
         const firstChargeDate = new Date();
         firstChargeDate.setFullYear(firstChargeDate.getFullYear() + 1);
@@ -58,7 +60,7 @@ const createSubscription = async (req, res) => {
         const subPayload = {
             subscription_id: subscriptionId,
             plan_details: {
-                plan_name: `CureBharat ${safePlanName} Yearly`,
+                plan_name: finalPlanName,
                 plan_type: 'PERIODIC',
                 plan_amount: totalRupees,
                 plan_max_amount: totalRupees,
@@ -99,6 +101,9 @@ const createSubscription = async (req, res) => {
             customerMobile,
             customerEmail,
             customerState: customerState || 'Maharashtra',
+            customerDOB,
+            customerPAN,
+            enrollmentType: enrollmentType || 'customer',
             nomineeName,
             nomineeRelation,
             saleAmount: totalPaise,

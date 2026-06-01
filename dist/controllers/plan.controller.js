@@ -39,7 +39,10 @@ exports.getAllPlansAdmin = getAllPlansAdmin;
  */
 const createPlan = async (req, res) => {
     try {
-        const planData = req.body;
+        const planData = { ...req.body };
+        if (req.file) {
+            planData.brochureUrl = req.file.path;
+        }
         const newPlan = await Plan_1.default.create(planData);
         res.status(201).json({ success: true, data: newPlan });
     }
@@ -55,7 +58,10 @@ exports.createPlan = createPlan;
 const updatePlan = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
+        const updates = { ...req.body };
+        if (req.file) {
+            updates.brochureUrl = req.file.path;
+        }
         const plan = await Plan_1.default.findByIdAndUpdate(id, updates, { new: true });
         if (!plan) {
             return res.status(404).json({ success: false, message: 'Plan not found' });
