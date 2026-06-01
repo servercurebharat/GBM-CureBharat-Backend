@@ -36,7 +36,8 @@ export async function processCommission(saleId: string): Promise<void> {
     return;
   }
 
-  const baseAmount = sale.businessVolume; // commission base (paise, excl GST)
+  // Client requested to use the raw Plan Price as the commission base instead of BV
+  const baseAmount = plan.price; // commission base (paise, excl GST)
   const cycleMonth = sale.cycleMonth;
 
   // ── 1. DIRECT INCOME (HCC) ──────────────────────────────────────────────
