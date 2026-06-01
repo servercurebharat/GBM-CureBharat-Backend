@@ -103,8 +103,8 @@ export const createOrder = async (req: Request, res: Response) => {
         customer_phone: customerMobile || (seller as any).mobile || '9999999999',
       },
       order_meta: {
-        return_url: `${process.env.CASHFREE_RETURN_URL}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
-        notify_url: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/public/webhook`,
+        return_url: `${(process.env.CASHFREE_RETURN_URL || '').trim()}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
+        notify_url: `${(process.env.BACKEND_URL || 'http://localhost:4000').trim()}/api/public/webhook`,
       },
       order_tags: {
         planId:   planId.toString(),
