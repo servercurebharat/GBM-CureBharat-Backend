@@ -36,7 +36,37 @@ export const getDownline = async (req: any, res: Response) => {
 
 export const getAdminTree = async (req: any, res: Response) => {
   try {
-    const users = await User.find({}).lean();
+    const users = await User.aggregate([
+      {
+        $lookup: {
+          from: 'wallets',
+          localField: '_id',
+          foreignField: 'user',
+          as: 'wallet'
+        }
+      },
+      {
+        $lookup: {
+          from: 'sales',
+          localField: '_id',
+          foreignField: 'sellerId',
+          as: 'salesList'
+        }
+      },
+      {
+        $addFields: {
+          totalIncome: { $ifNull: [{ $arrayElemAt: ['$wallet.totalEarned', 0] }, 0] },
+          totalSalesAmount: { $sum: '$salesList.saleAmount' }
+        }
+      },
+      {
+        $project: {
+          wallet: 0,
+          salesList: 0,
+          password: 0
+        }
+      }
+    ]);
     
     const buildTree = (parentId: any): any => {
       return users
