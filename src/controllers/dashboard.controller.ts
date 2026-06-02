@@ -3,6 +3,7 @@ import User from '../models/User';
 import Sale from '../models/Sale';
 import Withdrawal from '../models/Withdrawal';
 import mongoose from 'mongoose';
+import Wallet from '../models/Wallet';
 
 export const getDashboardSummary = async (req: any, res: Response) => {
   try {
@@ -229,6 +230,9 @@ export const getTopLeaders = async (req: any, res: Response) => {
       ]);
       const teamSalesValue = salesAgg[0]?.total || 0;
 
+      const wallet = await Wallet.findOne({ user: m._id }).lean();
+      const realIncome = wallet ? wallet.totalEarned : 0;
+
       return {
         _id: m._id,
         name: m.name,
@@ -237,8 +241,8 @@ export const getTopLeaders = async (req: any, res: Response) => {
         role: m.role,
         directCount,
         teamSalesValue,
-        overrideValue: Math.round(teamSalesValue * 0.02),
-        totalIncome: Math.round(teamSalesValue * 0.02) // Real calculation
+        overrideValue: realIncome,
+        totalIncome: realIncome
       };
     }));
 
