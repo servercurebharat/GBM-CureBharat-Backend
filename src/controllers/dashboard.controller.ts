@@ -184,7 +184,7 @@ export const getTopLeaders = async (req: any, res: Response) => {
 
     switch (role) {
       case 'admin':
-        targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcc';
+        targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcm';
         query = { role: targetRole };
         break;
       case 'sh':

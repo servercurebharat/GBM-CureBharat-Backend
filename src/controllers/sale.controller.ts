@@ -125,6 +125,10 @@ export const getMySales = async (req: any, res: Response) => {
       criteria.push({ status: req.query.status });
     }
 
+    if (req.query.sellerId) {
+      criteria.push({ sellerId: req.query.sellerId });
+    }
+
     if (criteria.length > 0) {
       query = { $and: criteria };
     }
