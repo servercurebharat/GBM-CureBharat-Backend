@@ -343,7 +343,10 @@ export const verifyPayment = async (req: Request, res: Response) => {
           <p>If you have any questions, feel free to reply to this email.</p>
         `;
       } else {
-        const kycLink = `https://gbm.curebharat.com/customer-kyc/${newSale._id}`;
+        // Point to the CRM's complete-profile route with the policyId
+        const crmUrl = process.env.CRM_URL || 'https://crm.curebharat.com';
+        const kycLink = `${crmUrl}/complete-profile/${policyId}`;
+        
         emailHtml = `
           <h3>Thank you for choosing CureBharat!</h3>
           <p>Dear ${customerName},</p>
