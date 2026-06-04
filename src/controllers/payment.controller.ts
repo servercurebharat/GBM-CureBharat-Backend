@@ -40,6 +40,11 @@ export const createOrder = async (req: any, res: Response) => {
     const amountInRupees = parseFloat(Number(amount).toFixed(2));
     const orderId = `CB_${Date.now()}_${req.user._id.toString().slice(-6)}`;
 
+    let returnUrl = req.body.returnUrl || process.env.CASHFREE_RETURN_URL?.replace('/buy/success', '/payment/status') || 'http://localhost:3000/payment/status';
+    if (process.env.CASHFREE_ENV === 'PROD' && returnUrl.includes('localhost')) {
+      returnUrl = returnUrl.replace('http://localhost:3000', 'https://gbm.curebharat.com');
+    }
+
     const orderRequest: CreateOrderRequest = {
       order_id:       orderId,
       order_amount:   amountInRupees,
@@ -51,7 +56,7 @@ export const createOrder = async (req: any, res: Response) => {
         customer_phone: (user as any).mobile || (user as any).phone || '9999999999',
       },
       order_meta: {
-        return_url: `${req.body.returnUrl || process.env.CASHFREE_RETURN_URL?.replace('/buy/success', '/payment/status') || 'http://localhost:3000/payment/status'}?order_id={order_id}`,
+        return_url: `${returnUrl}?order_id={order_id}`,
         notify_url: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/payment/webhook`,
       },
       order_tags: {

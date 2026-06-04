@@ -95,6 +95,11 @@ export const createOrder = async (req: Request, res: Response) => {
     let backendUrl = (process.env.BACKEND_URL || 'http://localhost:4000').trim();
     if (!backendUrl.startsWith('http')) backendUrl = `https://${backendUrl}`;
 
+    let returnUrl = (process.env.CASHFREE_RETURN_URL || '').trim();
+    if (process.env.CASHFREE_ENV === 'PROD' && returnUrl.includes('localhost')) {
+      returnUrl = returnUrl.replace('http://localhost:3000', 'https://gbm.curebharat.com');
+    }
+
     const orderRequest: CreateOrderRequest = {
       order_id:       orderId,
       order_amount:   totalRupees,
@@ -106,7 +111,7 @@ export const createOrder = async (req: Request, res: Response) => {
         customer_phone: customerMobile || (seller as any).mobile || '9999999999',
       },
       order_meta: {
-        return_url: `${(process.env.CASHFREE_RETURN_URL || '').trim()}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
+        return_url: `${returnUrl}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
         notify_url: `${backendUrl}/api/public/webhook`,
       },
       order_tags: {
