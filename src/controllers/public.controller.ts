@@ -319,11 +319,32 @@ export const verifyPayment = async (req: Request, res: Response) => {
       }
     } else {
       console.log(`[Public] Customer-only enrollment for ${customerMobile} — no account created`);
+    }
+
+    // ── Send "Payment Successful & Complete Profile" Email ──
+    if (customerEmail) {
+      let emailHtml = '';
       
-      // Send "Complete Your Profile" email to customer
-      if (customerEmail) {
+      if (enrollmentType === 'distributor') {
+        const loginUrl = 'https://gbm.curebharat.com/login';
+        emailHtml = `
+          <h3>Welcome to the CureBharat Family!</h3>
+          <p>Dear ${customerName},</p>
+          <p>Your payment of ₹${plan.price} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
+          <p>Your Distributor Account has been successfully created!</p>
+          <div style="background-color: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Member ID / Login:</strong> ${newUserAccount?.memberId || customerMobile}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Password:</strong> 123456</p>
+          </div>
+          <p>Please log in to your dashboard to complete your KYC and generate your Policy Document.</p>
+          <div style="margin: 30px 0;">
+            <a href="${loginUrl}" style="background-color: #49D2B5; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to Dashboard</a>
+          </div>
+          <p>If you have any questions, feel free to reply to this email.</p>
+        `;
+      } else {
         const kycLink = `https://gbm.curebharat.com/customer-kyc/${newSale._id}`;
-        const emailHtml = `
+        emailHtml = `
           <h3>Thank you for choosing CureBharat!</h3>
           <p>Dear ${customerName},</p>
           <p>Your payment of ₹${plan.price} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
@@ -333,11 +354,11 @@ export const verifyPayment = async (req: Request, res: Response) => {
           </div>
           <p>If you have any questions, feel free to reply to this email.</p>
         `;
-        
-        // Non-blocking email send
-        sendEmail(customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
-          .catch(err => console.error('[Public] Failed to send customer KYC email:', err));
       }
+
+      // Non-blocking email send
+      sendEmail(customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
+        .catch(err => console.error('[Public] Failed to send customer KYC email:', err));
     }
 
     // ── Trigger Commission (async) ─────────────────────────────────────────
