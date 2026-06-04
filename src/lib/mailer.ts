@@ -393,10 +393,37 @@ export const sendWelcomeMail = async (
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[MAIL] Sent Welcome Email to ${toEmail} | MessageID: ${info.messageId}`);
+    console.log(`[MAIL] Sent Welcome to ${toEmail} | MessageID: ${info.messageId}`);
     return true;
   } catch (error) {
     console.error('[MAIL] sendWelcomeMail Error:', error);
+    return false;
+  }
+};
+
+export const sendEmail = async (to: string, subject: string, htmlContent: string) => {
+  try {
+    const mailOptions = {
+      from: `"CureBharat" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      to,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+          <h2 style="color: #49D2B5; text-align: center; font-weight: 800;">CureBharat Wellness</h2>
+          <hr style="border: 0; border-top: 1px solid #eee;" />
+          <div style="padding: 20px 0;">
+            ${htmlContent}
+          </div>
+          <hr style="border: 0; border-top: 1px solid #eee; margin-top: 30px;" />
+          <p style="color: #999; font-size: 12px; text-align: center;">© ${new Date().getFullYear()} CureBharat Wellness Private Limited. All rights reserved.</p>
+        </div>
+      `,
+    };
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[MAIL] Sent generic email to ${to} | MessageID: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error('[MAIL] sendEmail Error:', error);
     return false;
   }
 };

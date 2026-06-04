@@ -230,7 +230,7 @@ export const getTopLeaders = async (req: any, res: Response) => {
       ]);
       const teamSalesValue = salesAgg[0]?.total || 0;
 
-      const wallet = await Wallet.findOne({ user: m._id }).lean();
+      const wallet = await Wallet.findOne({ user: m._id }).lean() as any;
       const realIncome = wallet ? wallet.totalEarned : 0;
 
       return {

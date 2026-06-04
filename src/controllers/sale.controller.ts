@@ -6,6 +6,8 @@ import EPin from '../models/EPin';
 import { processCommission, getCurrentCycleMonth } from '../lib/commission';
 import { createNotification } from './notification.controller';
 
+import { pushToCRMAndEmail } from '../lib/crm';
+
 export const createSale = async (req: any, res: Response) => {
   try {
     const { customerName, customerMobile, planId, customerState } = req.body;
@@ -22,8 +24,6 @@ export const createSale = async (req: any, res: Response) => {
     // 3. Calculate Total Billing Amount (Price + GST)
     const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
     const totalAmount = plan.price + gstAmount;
-
-    // E-Pin logic removed (Online Only)
 
     // 5. Generate unique Policy ID
     const policyId = `CB-POL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -48,11 +48,14 @@ export const createSale = async (req: any, res: Response) => {
 
     await newSale.save();
 
-    // E-Pin logic removed
-
     // 7. Trigger Commission Processing (Async)
     processCommission(newSale._id.toString()).catch(err => {
       console.error(`[Commission Error] Sale ${newSale._id}:`, err);
+    });
+
+    // 8. Push to CRM and send onboarding email (Async)
+    pushToCRMAndEmail(newSale, plan).catch(err => {
+      console.error(`[CRM Sync Error] Sale ${newSale._id}:`, err);
     });
 
     // Trigger in-app notification to all admin users about the new sale!
