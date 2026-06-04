@@ -7,6 +7,8 @@ import {
   checkMobile,
   sendEmailOTP,
   verifyEmailOTP,
+  getKycSale,
+  submitKyc
 } from '../controllers/public.controller';
 
 const router = Router();
@@ -21,5 +23,9 @@ router.post('/webhook',            razorpayWebhook);
 router.get('/check-mobile/:mobile', checkMobile);
 router.post('/send-otp',           sendEmailOTP);
 router.post('/verify-otp',         verifyEmailOTP);
+
+// KYC
+router.get('/kyc/:saleId',         getKycSale);
+router.post('/kyc/:saleId',        submitKyc);
 
 export default router;

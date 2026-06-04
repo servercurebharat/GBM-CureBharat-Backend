@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import User from '../models/User';
 import Plan from '../models/Plan';
 import Sale from '../models/Sale';
+import CustomerKYC from '../models/CustomerKYC';
 import Wallet from '../models/Wallet';
 import OTP from '../models/OTP';
 import { processCommission, getCurrentCycleMonth } from '../lib/commission';
@@ -343,9 +344,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
           <p>If you have any questions, feel free to reply to this email.</p>
         `;
       } else {
-        // Point to the CRM's complete-profile route with the policyId
-        const crmUrl = process.env.CRM_URL || 'https://crm.curebharat.com';
-        const kycLink = `${crmUrl}/complete-profile/${policyId}`;
+        const kycLink = `https://gbm.curebharat.com/customer-kyc/${newSale._id}`;
         
         emailHtml = `
           <h3>Thank you for choosing CureBharat!</h3>
@@ -543,6 +542,55 @@ export const verifyEmailOTP = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, message: 'Email verified successfully' });
   } catch (error: any) {
     console.error('[Public] verifyEmailOTP Error:', error.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── GET /api/public/kyc/:saleId ──────────────────────────────────────────────
+export const getKycSale = async (req: Request, res: Response) => {
+  try {
+    const sale = await Sale.findById(req.params.saleId).populate('plan');
+    if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
+    
+    // Check if KYC already exists
+    const kyc = await CustomerKYC.findOne({ saleId: sale._id });
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        sale,
+        kycSubmitted: !!kyc,
+        kycData: kyc
+      }
+    });
+  } catch (error: any) {
+    console.error('[Public] getKycSale Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── POST /api/public/kyc/:saleId ─────────────────────────────────────────────
+export const submitKyc = async (req: Request, res: Response) => {
+  try {
+    const saleId = req.params.saleId;
+    const existingKyc = await CustomerKYC.findOne({ saleId });
+    if (existingKyc) {
+      return res.status(400).json({ success: false, message: 'KYC profile already submitted for this policy.' });
+    }
+
+    const kyc = new CustomerKYC({
+      saleId,
+      ...req.body
+    });
+    
+    await kyc.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile submitted successfully. Your policy document will be generated shortly.',
+    });
+  } catch (error: any) {
+    console.error('[Public] submitKyc Error:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
