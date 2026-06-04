@@ -7,7 +7,7 @@ import Sale from '../models/Sale';
 import Wallet from '../models/Wallet';
 import OTP from '../models/OTP';
 import { processCommission, getCurrentCycleMonth } from '../lib/commission';
-import { sendOTPMail } from '../lib/mailer';
+import { sendOTPMail, sendEmail } from '../lib/mailer';
 
 // ─────────────────────────────────────────────
 // Initialize Cashfree SDK (singleton)
@@ -319,6 +319,25 @@ export const verifyPayment = async (req: Request, res: Response) => {
       }
     } else {
       console.log(`[Public] Customer-only enrollment for ${customerMobile} — no account created`);
+      
+      // Send "Complete Your Profile" email to customer
+      if (customerEmail) {
+        const kycLink = `https://gbm.curebharat.com/customer-kyc/${newSale._id}`;
+        const emailHtml = `
+          <h3>Thank you for choosing CureBharat!</h3>
+          <p>Dear ${customerName},</p>
+          <p>Your payment of ₹${plan.price} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
+          <p>To generate your official Policy Document and Health Cards, we just need a few basic details (DOB, Address, Nominee, etc).</p>
+          <div style="margin: 30px 0;">
+            <a href="${kycLink}" style="background-color: #49D2B5; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Complete Profile Now</a>
+          </div>
+          <p>If you have any questions, feel free to reply to this email.</p>
+        `;
+        
+        // Non-blocking email send
+        sendEmail(customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
+          .catch(err => console.error('[Public] Failed to send customer KYC email:', err));
+      }
     }
 
     // ── Trigger Commission (async) ─────────────────────────────────────────
