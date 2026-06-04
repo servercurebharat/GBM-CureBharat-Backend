@@ -95,9 +95,7 @@ export const createOrder = async (req: Request, res: Response) => {
     let backendUrl = (process.env.BACKEND_URL || 'http://localhost:4000').trim();
     if (!backendUrl.startsWith('http')) backendUrl = `https://${backendUrl}`;
 
-    let returnUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://gbm.curebharat.com/buy/success' 
-      : 'http://localhost:3000/buy/success';
+    let returnUrl = process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success';
     const orderRequest: CreateOrderRequest = {
       order_id:       orderId,
       order_amount:   totalRupees,

@@ -40,9 +40,7 @@ export const createOrder = async (req: any, res: Response) => {
     const amountInRupees = parseFloat(Number(amount).toFixed(2));
     const orderId = `CB_${Date.now()}_${req.user._id.toString().slice(-6)}`;
 
-    let returnUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://gbm.curebharat.com/payment/status' 
-      : 'http://localhost:3000/payment/status';
+    let returnUrl = process.env.CASHFREE_RETURN_URL?.replace('/buy/success', '/payment/status') || 'http://localhost:3000/payment/status';
 
     const orderRequest: CreateOrderRequest = {
       order_id:       orderId,
