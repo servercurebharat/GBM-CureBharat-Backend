@@ -117,7 +117,7 @@ export const requestWithdrawal = async (req: any, res: Response) => {
     }
 
     // 1. Calculate TDS and Net
-    const tdsAmount = Math.round(amount * 0.05); // 5% TDS
+    const tdsAmount = Math.round(amount * 0.02); // 2% TDS
     const netAmount = amount - tdsAmount;
 
     // 2. Generate Request ID
@@ -248,7 +248,7 @@ export const getAllProvisional = async (req: any, res: Response) => {
       totalProvisional += w.provisionalBalance;
     });
 
-    const estimatedTDS = Math.round(totalProvisional * 0.05); // 5% flat for simplicity in summary
+    const estimatedTDS = Math.round(totalProvisional * 0.02); // 2% flat for simplicity in summary
     const netPayout = totalProvisional - estimatedTDS;
 
     return res.status(200).json({

@@ -459,7 +459,7 @@ export const requestBankUpdateOTP = async (req: any, res: Response) => {
       to: user.email,
       subject: '🛡️ CureBharat Bank Details Change Authorization Code (OTP)',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: #3b82f6; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">CureBharat Wellness</h2>
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Security Operations Center</p>

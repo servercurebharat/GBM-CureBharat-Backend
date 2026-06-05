@@ -6,7 +6,7 @@ import { calculateTDS } from './tdsCalculator';
  * Monthly payout cycle — runs on the 5th of every month (T+5).
  *
  * Steps per wallet:
- * 1. Calculate TDS (5% if provisional > ₹10,000)
+ * 1. Calculate TDS (2% if provisional > ₹10,000)
  * 2. Calculate GST on commission (18%)
  * 3. Deduct TDS and GST
  * 4. Move net amount: provisionalBalance → finalBalance

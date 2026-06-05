@@ -4,7 +4,7 @@
  */
 
 const TDS_THRESHOLD = 10000; // ₹10,000
-const TDS_RATE = 0.05;        // 5%
+const TDS_RATE = 0.02;        // 2%
 const GST_ON_COMMISSION = 0.18; // 18% GST on commission income
 
 export interface ITdsResult {

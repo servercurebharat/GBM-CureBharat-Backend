@@ -58,7 +58,7 @@ export const sendKYCSubmissionAlert = async (
       to: adminEmail,
       subject: `🚨 [KYC Alert] Verification Request from ${member.name} (${member.memberId})`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: #10b981; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">CureBharat Wellness</h2>
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Security & Compliance Node</p>
@@ -134,7 +134,7 @@ export const sendKYCStatusMail = async (
       to: toEmail,
       subject: `🛡️ [CureBharat] KYC Document Verification ${isApproved ? 'Approved' : 'Rejected'}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: ${isApproved ? '#10b981' : '#f43f5e'}; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">CureBharat Wellness</h2>
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Compliance Division</p>
@@ -195,7 +195,7 @@ export const sendBankStatusMail = async (
       to: toEmail,
       subject: `🛡️ [CureBharat] Bank Account Verification ${isVerified ? 'Approved' : 'Rejected'}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: ${isVerified ? '#10b981' : '#f43f5e'}; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">CureBharat Wellness</h2>
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Compliance Division</p>
@@ -257,7 +257,7 @@ export const sendPayoutSettlementMail = async (
       to: toEmail,
       subject: `💰 CureBharat Commission Payout Finalized - ${cycleMonth}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: #10b981; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">CureBharat Wellness</h2>
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Finance & Commissions Dept.</p>
@@ -280,7 +280,7 @@ export const sendPayoutSettlementMail = async (
                 <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #0f172a;">₹${grossAmount.toFixed(2)}</td>
               </tr>
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 8px 0; color: #64748b;">TDS Tax Deduction (5%):</td>
+                <td style="padding: 8px 0; color: #64748b;">TDS Tax Deduction (2%):</td>
                 <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #ef4444;">- ₹${tdsAmount.toFixed(2)}</td>
               </tr>
               <tr style="font-size: 15px; font-weight: 800;">
@@ -336,7 +336,7 @@ export const sendWelcomeMail = async (
       to: toEmail,
       subject: `🎉 Welcome to CureBharat Wellness - Enrollment Confirmed!`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <img src="cid:logo" alt="CureBharat Logo" style="max-width: 200px; height: auto;" />
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 10px;">Partner Onboarding Node</p>

@@ -93,7 +93,7 @@ export const buildResponse = async (
       answer: bestFaq.answer,
       data: null,
       suggestions: bestFaq.relatedPrompts || [],
-      confidenceScore: 0.95
+      confidenceScore: 0.98
     };
   }
 
