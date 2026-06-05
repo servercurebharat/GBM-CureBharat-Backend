@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
 export const sendOTPMail = async (toEmail: string, otp: string): Promise<boolean> => {
   try {
     const mailOptions = {
-      from: `"CureBharat Security" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      from: `"CureBharat (Noreply)" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
       to: toEmail,
       subject: 'CureBharat Account Verification Code (OTP)',
       html: `
@@ -54,7 +54,7 @@ export const sendKYCSubmissionAlert = async (
   try {
     const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/kyc`;
     const mailOptions = {
-      from: `"CureBharat Security" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      from: `"CureBharat (Noreply)" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
       to: adminEmail,
       subject: `🚨 [KYC Alert] Verification Request from ${member.name} (${member.memberId})`,
       html: `
@@ -130,7 +130,7 @@ export const sendKYCStatusMail = async (
   try {
     const isApproved = status === 'approved';
     const mailOptions = {
-      from: `"CureBharat Compliance" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      from: `"CureBharat (Noreply)" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
       to: toEmail,
       subject: `🛡️ [CureBharat] KYC Document Verification ${isApproved ? 'Approved' : 'Rejected'}`,
       html: `
@@ -191,7 +191,7 @@ export const sendBankStatusMail = async (
   try {
     const isVerified = status === 'verified';
     const mailOptions = {
-      from: `"CureBharat Compliance" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      from: `"CureBharat (Noreply)" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
       to: toEmail,
       subject: `🛡️ [CureBharat] Bank Account Verification ${isVerified ? 'Approved' : 'Rejected'}`,
       html: `
@@ -404,7 +404,7 @@ export const sendWelcomeMail = async (
 export const sendEmail = async (to: string, subject: string, htmlContent: string) => {
   try {
     const mailOptions = {
-      from: `"CureBharat" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
+      from: `"CureBharat (Noreply)" <${process.env.SENDER_EMAIL || 'operations@curebharat.com'}>`,
       to,
       subject,
       html: `
