@@ -24,6 +24,10 @@ export type ChatbotIntent =
   | 'payout_status'
   | 'dashboard_help'
   | 'faq_help'
+  | 'financial_rules'
+  | 'rank_progression'
+  | 'product_knowledge'
+  | 'operational_help'
   | 'unknown';
 
 export interface ChatbotRequest {

@@ -65,6 +65,22 @@ const INTENT_MAPPINGS: IntentMapping[] = [
   {
     intent: 'faq_help',
     keywords: ['responsibility', 'what is my role', 'help', 'what can i do', 'how to', 'guide', 'explain']
+  },
+  {
+    intent: 'financial_rules',
+    keywords: ['withdrawal limit', 'minimum withdrawal', 'admin charges', 'tax rules', 'payout cycle', 'monthly closing', 'commission percentage', 'override commission', 'override income', 'direct commission']
+  },
+  {
+    intent: 'rank_progression',
+    keywords: ['how many sales to become', 'hcm criteria', 'requirements for hcm', 'how do i become an hba', 'branch authority requirements', 'hba promotion', 'state head criteria', 'rank benefits', 'level up', 'promotion requirements']
+  },
+  {
+    intent: 'product_knowledge',
+    keywords: ['what policies do we sell', 'life insurance', 'health insurance', 'product catalog', 'premium amount', 'how much does a policy cost', 'claim process', 'claim insurance', 'claim settlement', 'customer care number']
+  },
+  {
+    intent: 'operational_help',
+    keywords: ['change my bank details', 'update pan card', 'change password', 'marketing banners', 'download my id card', 'is curebharat legal', 'company registered', 'company address']
   }
 ];
 
