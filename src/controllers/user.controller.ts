@@ -134,7 +134,12 @@ export const updateKYC = async (req: any, res: Response) => {
     console.log('[KYC] Body:', req.body);
     console.log('[KYC] Files keys:', Object.keys(req.files || {}));
 
-    const { aadhaarNumber, panNumber, bankName, accountNumber, ifscCode } = req.body;
+    const { 
+      aadhaarNumber, panNumber, bankName, accountNumber, ifscCode,
+      maritalStatus, occupation, alternateMobile, 
+      addressLine1, addressLine2, city, state, zipCode,
+      familyDetails, healthDetails, nomineeDetails, gender, dob
+    } = req.body;
 
     // Security: Only user themselves or admin can update
     if (req.user._id.toString() !== id && req.user.role !== 'admin') {
@@ -183,8 +188,41 @@ export const updateKYC = async (req: any, res: Response) => {
       if (bp) user.kycDocuments.bankProofUrl = bp;
       if (sf) user.kycDocuments.selfieUrl = sf;
 
+      if (maritalStatus) user.maritalStatus = maritalStatus;
+      if (occupation) user.occupation = occupation;
+      if (alternateMobile) user.alternateMobile = alternateMobile;
+      if (gender) user.gender = gender;
+      if (dob) user.dob = new Date(dob);
+      
+      if (addressLine1 || addressLine2 || city || state || zipCode) {
+        user.address = {
+          ...user.address,
+          ...(addressLine1 && { addressLine1 }),
+          ...(addressLine2 && { addressLine2 }),
+          ...(city && { city }),
+          ...(state && { state }),
+          ...(zipCode && { zipCode }),
+        } as any;
+      }
+      
+      if (familyDetails) {
+        try { user.familyDetails = typeof familyDetails === 'string' ? JSON.parse(familyDetails) : familyDetails; } catch {}
+      }
+      
+      if (healthDetails) {
+        try { user.healthDetails = typeof healthDetails === 'string' ? JSON.parse(healthDetails) : healthDetails; } catch {}
+      }
+      
+      if (nomineeDetails) {
+        try { user.nomineeDetails = typeof nomineeDetails === 'string' ? JSON.parse(nomineeDetails) : nomineeDetails; } catch {}
+      }
+
       // Force Mongoose to recognize the nested update
       user.markModified('kycDocuments');
+      user.markModified('address');
+      user.markModified('familyDetails');
+      user.markModified('healthDetails');
+      user.markModified('nomineeDetails');
     }
 
     await user.save();

@@ -17,8 +17,11 @@ export interface IUser extends Document {
   dob?: Date;
   profileImage?: string;
   address?: {
+    addressLine1?: string;
+    addressLine2?: string;
     street?: string;
     city?: string;
+    state?: string;
     zipCode?: string;
   };
   bankDetails?: {
@@ -33,6 +36,22 @@ export interface IUser extends Document {
     name?: string;
     relation?: string;
     mobile?: string;
+    dob?: Date;
+    gender?: string;
+  };
+  maritalStatus?: string;
+  occupation?: string;
+  alternateMobile?: string;
+  familyDetails?: Array<{
+    name: string;
+    relation: string;
+    dob: Date;
+    gender: string;
+  }>;
+  healthDetails?: {
+    existingMedicalConditions?: string;
+    currentMedications?: string;
+    lifestyle?: string;
   };
   kycDocuments?: {
     aadhaarNumber?: string;
@@ -74,8 +93,11 @@ const userSchema = new Schema<IUser>({
   dob: { type: Date },
   profileImage: { type: String },
   address: {
+    addressLine1: String,
+    addressLine2: String,
     street: String,
     city: String,
+    state: String,
     zipCode: String,
   },
   bankDetails: {
@@ -90,6 +112,22 @@ const userSchema = new Schema<IUser>({
     name: String,
     relation: String,
     mobile: String,
+    dob: Date,
+    gender: String,
+  },
+  maritalStatus: String,
+  occupation: String,
+  alternateMobile: String,
+  familyDetails: [{
+    name: String,
+    relation: String,
+    dob: Date,
+    gender: String,
+  }],
+  healthDetails: {
+    existingMedicalConditions: String,
+    currentMedications: String,
+    lifestyle: String,
   },
   kycDocuments: {
     aadhaarNumber: String,
