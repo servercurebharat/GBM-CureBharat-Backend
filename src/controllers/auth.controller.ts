@@ -301,7 +301,13 @@ export const register = async (req: any, res: Response) => {
       const match = lastUserOfRole.memberId.match(/\d+$/);
       if (match) nextNum = parseInt(match[0]) + 1;
     }
-    const memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
+    let memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
+    
+    // Ensure uniqueness to prevent E11000 duplicate key crash
+    while (await User.exists({ memberId })) {
+      nextNum++;
+      memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
+    }
 
     // Create User
     const newUser = new User({

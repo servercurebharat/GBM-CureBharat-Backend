@@ -259,7 +259,12 @@ const register = async (req, res) => {
             if (match)
                 nextNum = parseInt(match[0]) + 1;
         }
-        const memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
+        let memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
+        // Ensure uniqueness to prevent E11000 duplicate key crash
+        while (await User_1.default.exists({ memberId })) {
+            nextNum++;
+            memberId = `CB-${roleToAssign.toUpperCase()}-${nextNum}`;
+        }
         // Create User
         const newUser = new User_1.default({
             name,
