@@ -331,7 +331,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
         emailHtml = `
           <h3>Welcome to the CureBharat Family!</h3>
           <p>Dear ${customerName},</p>
-          <p>Your payment of ₹${plan.price} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
+          <p>Your payment of ₹${newSale.saleAmount / 100} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
           <p>Your Distributor Account has been successfully created!</p>
           <div style="background-color: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
             <p style="margin: 0;"><strong>Member ID / Login:</strong> ${newUserAccount?.memberId || customerMobile}</p>
@@ -349,7 +349,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
         emailHtml = `
           <h3>Thank you for choosing CureBharat!</h3>
           <p>Dear ${customerName},</p>
-          <p>Your payment of ₹${plan.price} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
+          <p>Your payment of ₹${newSale.saleAmount / 100} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
           <p>To generate your official Policy Document and Health Cards, we just need a few basic details (DOB, Address, Nominee, etc).</p>
           <div style="margin: 30px 0;">
             <a href="${kycLink}" style="background-color: #49D2B5; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Complete Profile Now</a>
