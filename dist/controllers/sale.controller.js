@@ -134,7 +134,8 @@ const getMySales = async (req, res) => {
             const seller = sale.sellerId;
             let commission = 0;
             if (targetWallet && targetWallet.ledger) {
-                const entry = targetWallet.ledger.find((l) => l.saleId && l.saleId.toString() === sale._id.toString());
+                const entry = targetWallet.ledger.find((l) => (l.saleId && l.saleId.toString() === sale._id.toString()) ||
+                    (l.description && l.description.includes(sale.policyId)));
                 if (entry)
                     commission = entry.amount;
             }
