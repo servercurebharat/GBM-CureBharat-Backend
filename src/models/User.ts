@@ -13,7 +13,7 @@ export interface IUser extends Document {
   state: string;
   status: 'active' | 'inactive' | 'blocked';
   kycStatus: 'pending' | 'approved' | 'rejected' | 'not_submitted';
-  gender?: 'male' | 'female' | 'other';
+  gender?: 'Male' | 'Female' | 'Other' | 'male' | 'female' | 'other';
   dob?: Date;
   profileImage?: string;
   address?: {
@@ -89,7 +89,7 @@ const userSchema = new Schema<IUser>({
   state: { type: String, required: true },
   status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
   kycStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'not_submitted'], default: 'not_submitted' },
-  gender: { type: String, enum: ['male', 'female', 'other'] },
+  gender: { type: String, enum: ['Male', 'Female', 'Other', 'male', 'female', 'other'] },
   dob: { type: Date },
   profileImage: { type: String },
   address: {
