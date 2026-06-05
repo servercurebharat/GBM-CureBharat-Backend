@@ -569,6 +569,32 @@ export const getKycSale = async (req: Request, res: Response) => {
   }
 };
 
+// ─── GET /api/public/kyc/policy/:policyId ───────────────────────────────────
+// This endpoint is for the CRM to easily fetch KYC data using just the policy ID
+export const getKycByPolicyId = async (req: Request, res: Response) => {
+  try {
+    const sale = await Sale.findOne({ policyId: req.params.policyId }).populate('plan');
+    if (!sale) return res.status(404).json({ success: false, message: 'Sale/Policy not found' });
+    
+    const kyc = await CustomerKYC.findOne({ saleId: sale._id });
+    if (!kyc) return res.status(404).json({ success: false, message: 'KYC not submitted yet' });
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        policyId: sale.policyId,
+        customerName: sale.customerName,
+        customerMobile: sale.customerMobile,
+        planName: (sale.plan as any).name,
+        kycData: kyc
+      }
+    });
+  } catch (error: any) {
+    console.error('[Public] getKycByPolicyId Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // ─── POST /api/public/kyc/:saleId ─────────────────────────────────────────────
 export const submitKyc = async (req: Request, res: Response) => {
   try {

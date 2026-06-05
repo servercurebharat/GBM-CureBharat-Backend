@@ -8,7 +8,8 @@ import {
   sendEmailOTP,
   verifyEmailOTP,
   getKycSale,
-  submitKyc
+  submitKyc,
+  getKycByPolicyId
 } from '../controllers/public.controller';
 
 const router = Router();
@@ -27,5 +28,6 @@ router.post('/verify-otp',         verifyEmailOTP);
 // KYC
 router.get('/kyc/:saleId',         getKycSale);
 router.post('/kyc/:saleId',        submitKyc);
+router.get('/kyc/policy/:policyId', getKycByPolicyId);
 
 export default router;
