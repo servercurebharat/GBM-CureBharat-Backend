@@ -150,11 +150,22 @@ export const getMySales = async (req: any, res: Response) => {
 
     const total = await Sale.countDocuments(query);
 
+    // Fetch target user's wallet to attach commission info
+    const targetUserId = req.query.sellerId || _id;
+    const Wallet = require('../models/Wallet').default;
+    const targetWallet = await Wallet.findOne({ user: targetUserId }).select('ledger').lean();
+
     // Apply Privacy: Only direct seller can see customer details
     const processedSales = sales.map((sale: any) => {
       // Map sellerId to seller for frontend compatibility
       const seller = sale.sellerId;
       
+      let commission = 0;
+      if (targetWallet && targetWallet.ledger) {
+        const entry = targetWallet.ledger.find((l: any) => l.saleId && l.saleId.toString() === sale._id.toString());
+        if (entry) commission = entry.amount;
+      }
+
       // If current user is NOT the seller, redact customer details
       // Defensive check: if seller is missing (orphaned record), handle gracefully
       if (!seller) {
@@ -163,7 +174,8 @@ export const getMySales = async (req: any, res: Response) => {
           seller: null,
           customerName: 'N/A',
           customerMobile: 'N/A',
-          customerEmail: 'N/A'
+          customerEmail: 'N/A',
+          commission
         };
       }
 
@@ -171,7 +183,7 @@ export const getMySales = async (req: any, res: Response) => {
       const isAdmin = role === 'admin';
 
       if (isSeller || isAdmin) {
-        return { ...sale, seller };
+        return { ...sale, seller, commission };
       }
 
       return {
@@ -180,7 +192,8 @@ export const getMySales = async (req: any, res: Response) => {
         customerName: 'PROTECTED',
         customerMobile: '**********',
         customerEmail: '***',
-        nomineeName: '***'
+        nomineeName: '***',
+        commission
       };
     });
 

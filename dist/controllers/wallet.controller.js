@@ -115,7 +115,7 @@ const requestWithdrawal = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Insufficient final balance' });
         }
         // 1. Calculate TDS and Net
-        const tdsAmount = Math.round(amount * 0.05); // 5% TDS
+        const tdsAmount = Math.round(amount * 0.02); // 2% TDS
         const netAmount = amount - tdsAmount;
         // 2. Generate Request ID
         const requestId = `PAY-${crypto_1.default.randomBytes(3).toString('hex').toUpperCase()}`;
@@ -226,7 +226,7 @@ const getAllProvisional = async (req, res) => {
         wallets.forEach((w) => {
             totalProvisional += w.provisionalBalance;
         });
-        const estimatedTDS = Math.round(totalProvisional * 0.05); // 5% flat for simplicity in summary
+        const estimatedTDS = Math.round(totalProvisional * 0.02); // 2% flat for simplicity in summary
         const netPayout = totalProvisional - estimatedTDS;
         return res.status(200).json({
             success: true,

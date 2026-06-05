@@ -8,6 +8,7 @@ const User_1 = __importDefault(require("../models/User"));
 const Sale_1 = __importDefault(require("../models/Sale"));
 const Withdrawal_1 = __importDefault(require("../models/Withdrawal"));
 const mongoose_1 = __importDefault(require("mongoose"));
+const Wallet_1 = __importDefault(require("../models/Wallet"));
 const getDashboardSummary = async (req, res) => {
     try {
         const userId = new mongoose_1.default.Types.ObjectId(req.user._id);
@@ -162,7 +163,7 @@ const getTopLeaders = async (req, res) => {
         let query = {};
         switch (role) {
             case 'admin':
-                targetRole = filterRoleNormalized ? filterRoleNormalized : 'sh';
+                targetRole = filterRoleNormalized ? filterRoleNormalized : 'hcm';
                 query = { role: targetRole };
                 break;
             case 'sh':
@@ -206,6 +207,8 @@ const getTopLeaders = async (req, res) => {
                 { $group: { _id: null, total: { $sum: '$saleAmount' } } }
             ]);
             const teamSalesValue = salesAgg[0]?.total || 0;
+            const wallet = await Wallet_1.default.findOne({ user: m._id }).lean();
+            const realIncome = wallet ? wallet.totalEarned : 0;
             return {
                 _id: m._id,
                 name: m.name,
@@ -214,8 +217,8 @@ const getTopLeaders = async (req, res) => {
                 role: m.role,
                 directCount,
                 teamSalesValue,
-                overrideValue: Math.round(teamSalesValue * 0.02),
-                totalIncome: Math.round(teamSalesValue * 0.02) // Real calculation
+                overrideValue: realIncome,
+                totalIncome: realIncome
             };
         }));
         // Sort by total income

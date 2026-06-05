@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyEmailOTP = exports.sendEmailOTP = exports.checkMobile = exports.razorpayWebhook = exports.verifyPayment = exports.createOrder = exports.getSeller = void 0;
+exports.submitKyc = exports.getKycByPolicyId = exports.getKycSale = exports.verifyEmailOTP = exports.sendEmailOTP = exports.checkMobile = exports.razorpayWebhook = exports.verifyPayment = exports.createOrder = exports.getSeller = void 0;
 const cashfree_pg_1 = require("cashfree-pg");
 const User_1 = __importDefault(require("../models/User"));
 const Plan_1 = __importDefault(require("../models/Plan"));
 const Sale_1 = __importDefault(require("../models/Sale"));
+const CustomerKYC_1 = __importDefault(require("../models/CustomerKYC"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
 const OTP_1 = __importDefault(require("../models/OTP"));
 const commission_1 = require("../lib/commission");
@@ -79,6 +80,10 @@ const createOrder = async (req, res) => {
         const totalPaise = plan.price + gstAmount;
         const totalRupees = parseFloat((totalPaise / 100).toFixed(2));
         const orderId = `CB_SALE_${Date.now()}_${seller.memberId.replace('-', '')}`;
+        let backendUrl = (process.env.BACKEND_URL || 'http://localhost:4000').trim();
+        if (!backendUrl.startsWith('http'))
+            backendUrl = `https://${backendUrl}`;
+        let returnUrl = process.env.CASHFREE_RETURN_URL || 'http://localhost:3000/buy/success';
         const orderRequest = {
             order_id: orderId,
             order_amount: totalRupees,
@@ -90,8 +95,8 @@ const createOrder = async (req, res) => {
                 customer_phone: customerMobile || seller.mobile || '9999999999',
             },
             order_meta: {
-                return_url: `${process.env.CASHFREE_RETURN_URL}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
-                notify_url: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/public/webhook`,
+                return_url: `${returnUrl}?order_id={order_id}&ref=${refCode}&plan=${planId}`,
+                notify_url: `${backendUrl}/api/public/webhook`,
             },
             order_tags: {
                 planId: planId.toString(),
@@ -274,6 +279,44 @@ const verifyPayment = async (req, res) => {
         else {
             console.log(`[Public] Customer-only enrollment for ${customerMobile} — no account created`);
         }
+        // ── Send "Payment Successful & Complete Profile" Email ──
+        if (customerEmail) {
+            let emailHtml = '';
+            if (enrollmentType === 'distributor') {
+                const loginUrl = 'https://gbm.curebharat.com/login';
+                emailHtml = `
+          <h3>Welcome to the CureBharat Family!</h3>
+          <p>Dear ${customerName},</p>
+          <p>Your payment of ₹${newSale.saleAmount / 100} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
+          <p>Your Distributor Account has been successfully created!</p>
+          <div style="background-color: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Member ID / Login:</strong> ${newUserAccount?.memberId || customerMobile}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Password:</strong> 123456</p>
+          </div>
+          <p>Please log in to your dashboard to complete your KYC and generate your Policy Document.</p>
+          <div style="margin: 30px 0;">
+            <a href="${loginUrl}" style="background-color: #49D2B5; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to Dashboard</a>
+          </div>
+          <p>If you have any questions, feel free to reply to this email.</p>
+        `;
+            }
+            else {
+                const kycLink = `https://gbm.curebharat.com/customer-kyc/${newSale._id}`;
+                emailHtml = `
+          <h3>Thank you for choosing CureBharat!</h3>
+          <p>Dear ${customerName},</p>
+          <p>Your payment of ₹${newSale.saleAmount / 100} for <strong>${plan.name}</strong> was completely successful. (Policy ID: ${policyId})</p>
+          <p>To generate your official Policy Document and Health Cards, we just need a few basic details (DOB, Address, Nominee, etc).</p>
+          <div style="margin: 30px 0;">
+            <a href="${kycLink}" style="background-color: #49D2B5; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Complete Profile Now</a>
+          </div>
+          <p>If you have any questions, feel free to reply to this email.</p>
+        `;
+            }
+            // Non-blocking email send
+            (0, mailer_1.sendEmail)(customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
+                .catch(err => console.error('[Public] Failed to send customer KYC email:', err));
+        }
         // ── Trigger Commission (async) ─────────────────────────────────────────
         (0, commission_1.processCommission)(newSale._id.toString()).catch((err) => {
             console.error(`[Commission Error] Sale ${newSale._id}:`, err);
@@ -441,3 +484,77 @@ const verifyEmailOTP = async (req, res) => {
     }
 };
 exports.verifyEmailOTP = verifyEmailOTP;
+// ─── GET /api/public/kyc/:saleId ──────────────────────────────────────────────
+const getKycSale = async (req, res) => {
+    try {
+        const sale = await Sale_1.default.findById(req.params.saleId).populate('plan');
+        if (!sale)
+            return res.status(404).json({ success: false, message: 'Sale not found' });
+        // Check if KYC already exists
+        const kyc = await CustomerKYC_1.default.findOne({ saleId: sale._id });
+        return res.status(200).json({
+            success: true,
+            data: {
+                sale,
+                kycSubmitted: !!kyc,
+                kycData: kyc
+            }
+        });
+    }
+    catch (error) {
+        console.error('[Public] getKycSale Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+exports.getKycSale = getKycSale;
+// ─── GET /api/public/kyc/policy/:policyId ───────────────────────────────────
+// This endpoint is for the CRM to easily fetch KYC data using just the policy ID
+const getKycByPolicyId = async (req, res) => {
+    try {
+        const sale = await Sale_1.default.findOne({ policyId: req.params.policyId }).populate('plan');
+        if (!sale)
+            return res.status(404).json({ success: false, message: 'Sale/Policy not found' });
+        const kyc = await CustomerKYC_1.default.findOne({ saleId: sale._id });
+        if (!kyc)
+            return res.status(404).json({ success: false, message: 'KYC not submitted yet' });
+        return res.status(200).json({
+            success: true,
+            data: {
+                policyId: sale.policyId,
+                customerName: sale.customerName,
+                customerMobile: sale.customerMobile,
+                planName: sale.plan.name,
+                kycData: kyc
+            }
+        });
+    }
+    catch (error) {
+        console.error('[Public] getKycByPolicyId Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+exports.getKycByPolicyId = getKycByPolicyId;
+// ─── POST /api/public/kyc/:saleId ─────────────────────────────────────────────
+const submitKyc = async (req, res) => {
+    try {
+        const saleId = req.params.saleId;
+        const existingKyc = await CustomerKYC_1.default.findOne({ saleId });
+        if (existingKyc) {
+            return res.status(400).json({ success: false, message: 'KYC profile already submitted for this policy.' });
+        }
+        const kyc = new CustomerKYC_1.default({
+            saleId,
+            ...req.body
+        });
+        await kyc.save();
+        return res.status(200).json({
+            success: true,
+            message: 'Profile submitted successfully. Your policy document will be generated shortly.',
+        });
+    }
+    catch (error) {
+        console.error('[Public] submitKyc Error:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+exports.submitKyc = submitKyc;

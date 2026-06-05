@@ -9,6 +9,7 @@ const User_1 = __importDefault(require("../models/User"));
 const Plan_1 = __importDefault(require("../models/Plan"));
 const commission_1 = require("../lib/commission");
 const notification_controller_1 = require("./notification.controller");
+const crm_1 = require("../lib/crm");
 const createSale = async (req, res) => {
     try {
         const { customerName, customerMobile, planId, customerState } = req.body;
@@ -22,7 +23,6 @@ const createSale = async (req, res) => {
         // 3. Calculate Total Billing Amount (Price + GST)
         const gstAmount = Math.round((plan.price * (plan.gstPercent || 18)) / 100);
         const totalAmount = plan.price + gstAmount;
-        // E-Pin logic removed (Online Only)
         // 5. Generate unique Policy ID
         const policyId = `CB-POL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
         // 6. Create Sale Record
@@ -43,10 +43,13 @@ const createSale = async (req, res) => {
             razorpayPaymentId: `INT_PAY_${Date.now()}`
         });
         await newSale.save();
-        // E-Pin logic removed
         // 7. Trigger Commission Processing (Async)
         (0, commission_1.processCommission)(newSale._id.toString()).catch(err => {
             console.error(`[Commission Error] Sale ${newSale._id}:`, err);
+        });
+        // 8. Push to CRM and send onboarding email (Async)
+        (0, crm_1.pushToCRMAndEmail)(newSale, plan).catch(err => {
+            console.error(`[CRM Sync Error] Sale ${newSale._id}:`, err);
         });
         // Trigger in-app notification to all admin users about the new sale!
         try {
@@ -105,6 +108,9 @@ const getMySales = async (req, res) => {
         if (req.query.status && req.query.status !== 'all') {
             criteria.push({ status: req.query.status });
         }
+        if (req.query.sellerId) {
+            criteria.push({ sellerId: req.query.sellerId });
+        }
         if (criteria.length > 0) {
             query = { $and: criteria };
         }
@@ -118,10 +124,20 @@ const getMySales = async (req, res) => {
             .lean();
         console.log(`[Sales] Found ${sales.length} results`);
         const total = await Sale_1.default.countDocuments(query);
+        // Fetch target user's wallet to attach commission info
+        const targetUserId = req.query.sellerId || _id;
+        const Wallet = require('../models/Wallet').default;
+        const targetWallet = await Wallet.findOne({ user: targetUserId }).select('ledger').lean();
         // Apply Privacy: Only direct seller can see customer details
         const processedSales = sales.map((sale) => {
             // Map sellerId to seller for frontend compatibility
             const seller = sale.sellerId;
+            let commission = 0;
+            if (targetWallet && targetWallet.ledger) {
+                const entry = targetWallet.ledger.find((l) => l.saleId && l.saleId.toString() === sale._id.toString());
+                if (entry)
+                    commission = entry.amount;
+            }
             // If current user is NOT the seller, redact customer details
             // Defensive check: if seller is missing (orphaned record), handle gracefully
             if (!seller) {
@@ -130,13 +146,14 @@ const getMySales = async (req, res) => {
                     seller: null,
                     customerName: 'N/A',
                     customerMobile: 'N/A',
-                    customerEmail: 'N/A'
+                    customerEmail: 'N/A',
+                    commission
                 };
             }
             const isSeller = seller._id?.toString() === _id.toString();
             const isAdmin = role === 'admin';
             if (isSeller || isAdmin) {
-                return { ...sale, seller };
+                return { ...sale, seller, commission };
             }
             return {
                 ...sale,
@@ -144,7 +161,8 @@ const getMySales = async (req, res) => {
                 customerName: 'PROTECTED',
                 customerMobile: '**********',
                 customerEmail: '***',
-                nomineeName: '***'
+                nomineeName: '***',
+                commission
             };
         });
         return res.status(200).json({

@@ -351,10 +351,16 @@ export const getAllUsers = async (req: any, res: Response) => {
 export const getUserById = async (req: any, res: Response) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id).select('-password');
+    const user = await User.findById(id).select('-password').lean() as any;
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+    
+    // Fetch total earning from Wallet
+    const Wallet = require('../models/Wallet').default;
+    const wallet = await Wallet.findOne({ user: id }).select('totalEarned').lean() as any;
+    user.totalEarned = wallet ? wallet.totalEarned : 0;
+
     return res.status(200).json({ success: true, data: user });
   } catch (error: any) {
     console.error('[User] getUserById Error:', error);

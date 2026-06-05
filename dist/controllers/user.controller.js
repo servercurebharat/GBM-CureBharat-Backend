@@ -38,7 +38,37 @@ const getDownline = async (req, res) => {
 exports.getDownline = getDownline;
 const getAdminTree = async (req, res) => {
     try {
-        const users = await User_1.default.find({}).lean();
+        const users = await User_1.default.aggregate([
+            {
+                $lookup: {
+                    from: 'wallets',
+                    localField: '_id',
+                    foreignField: 'user',
+                    as: 'wallet'
+                }
+            },
+            {
+                $lookup: {
+                    from: 'sales',
+                    localField: '_id',
+                    foreignField: 'sellerId',
+                    as: 'salesList'
+                }
+            },
+            {
+                $addFields: {
+                    totalIncome: { $ifNull: [{ $arrayElemAt: ['$wallet.totalEarned', 0] }, 0] },
+                    totalSalesAmount: { $sum: '$salesList.saleAmount' }
+                }
+            },
+            {
+                $project: {
+                    wallet: 0,
+                    salesList: 0,
+                    password: 0
+                }
+            }
+        ]);
         const buildTree = (parentId) => {
             return users
                 .filter((u) => String(u.referrerId) === String(parentId))
@@ -100,7 +130,7 @@ const updateKYC = async (req, res) => {
         console.log(`[KYC] Updating user: ${id}`);
         console.log('[KYC] Body:', req.body);
         console.log('[KYC] Files keys:', Object.keys(req.files || {}));
-        const { aadhaarNumber, panNumber, bankName, accountNumber, ifscCode } = req.body;
+        const { aadhaarNumber, panNumber, bankName, accountNumber, ifscCode, maritalStatus, occupation, alternateMobile, addressLine1, addressLine2, city, state, zipCode, familyDetails, healthDetails, nomineeDetails, gender, dob } = req.body;
         // Security: Only user themselves or admin can update
         if (req.user._id.toString() !== id && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Unauthorized access' });
@@ -152,8 +182,50 @@ const updateKYC = async (req, res) => {
                 user.kycDocuments.bankProofUrl = bp;
             if (sf)
                 user.kycDocuments.selfieUrl = sf;
+            if (maritalStatus)
+                user.maritalStatus = maritalStatus;
+            if (occupation)
+                user.occupation = occupation;
+            if (alternateMobile)
+                user.alternateMobile = alternateMobile;
+            if (gender)
+                user.gender = gender;
+            if (dob)
+                user.dob = new Date(dob);
+            if (addressLine1 || addressLine2 || city || state || zipCode) {
+                user.address = {
+                    ...user.address,
+                    ...(addressLine1 && { addressLine1 }),
+                    ...(addressLine2 && { addressLine2 }),
+                    ...(city && { city }),
+                    ...(state && { state }),
+                    ...(zipCode && { zipCode }),
+                };
+            }
+            if (familyDetails) {
+                try {
+                    user.familyDetails = typeof familyDetails === 'string' ? JSON.parse(familyDetails) : familyDetails;
+                }
+                catch { }
+            }
+            if (healthDetails) {
+                try {
+                    user.healthDetails = typeof healthDetails === 'string' ? JSON.parse(healthDetails) : healthDetails;
+                }
+                catch { }
+            }
+            if (nomineeDetails) {
+                try {
+                    user.nomineeDetails = typeof nomineeDetails === 'string' ? JSON.parse(nomineeDetails) : nomineeDetails;
+                }
+                catch { }
+            }
             // Force Mongoose to recognize the nested update
             user.markModified('kycDocuments');
+            user.markModified('address');
+            user.markModified('familyDetails');
+            user.markModified('healthDetails');
+            user.markModified('nomineeDetails');
         }
         await user.save();
         // Trigger Admin Email Alert if the user is submitting their KYC documents (status = 'pending')
@@ -264,10 +336,14 @@ exports.getAllUsers = getAllUsers;
 const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
-        const user = await User_1.default.findById(id).select('-password');
+        const user = await User_1.default.findById(id).select('-password').lean();
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
+        // Fetch total earning from Wallet
+        const Wallet = require('../models/Wallet').default;
+        const wallet = await Wallet.findOne({ user: id }).select('totalEarned').lean();
+        user.totalEarned = wallet ? wallet.totalEarned : 0;
         return res.status(200).json({ success: true, data: user });
     }
     catch (error) {
@@ -394,7 +470,7 @@ const requestBankUpdateOTP = async (req, res) => {
             to: user.email,
             subject: '🛡️ CureBharat Bank Details Change Authorization Code (OTP)',
             html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: #3b82f6; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">CureBharat Wellness</h2>
             <p style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Security Operations Center</p>

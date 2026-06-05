@@ -12,4 +12,8 @@ router.post('/webhook', public_controller_1.razorpayWebhook);
 router.get('/check-mobile/:mobile', public_controller_1.checkMobile);
 router.post('/send-otp', public_controller_1.sendEmailOTP);
 router.post('/verify-otp', public_controller_1.verifyEmailOTP);
+// KYC
+router.get('/kyc/:saleId', public_controller_1.getKycSale);
+router.post('/kyc/:saleId', public_controller_1.submitKyc);
+router.get('/kyc/policy/:policyId', public_controller_1.getKycByPolicyId);
 exports.default = router;

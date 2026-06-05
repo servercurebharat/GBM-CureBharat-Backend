@@ -70,7 +70,7 @@ const detectIntent = (message) => {
     const words = lowerMessage.split(/\s+/);
     const hasGreeting = words.some(word => greetings.includes(word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")));
     if (hasGreeting && words.length <= 3) {
-        return { intent: 'greeting', confidenceScore: 0.95 };
+        return { intent: 'greeting', confidenceScore: 0.98 };
     }
     let bestIntent = 'unknown';
     let highestScore = 0;
@@ -82,8 +82,8 @@ const detectIntent = (message) => {
             }
         }
         if (matches > 0) {
-            // Basic confidence logic: base + (matches * factor), capped at 0.95
-            const score = Math.min(0.6 + (matches * 0.15), 0.95);
+            // Basic confidence logic: base + (matches * factor), capped at 0.98
+            const score = Math.min(0.6 + (matches * 0.15), 0.98);
             if (score > highestScore) {
                 highestScore = score;
                 bestIntent = mapping.intent;

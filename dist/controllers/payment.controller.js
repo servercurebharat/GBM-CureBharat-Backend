@@ -32,6 +32,7 @@ const createOrder = async (req, res) => {
         }
         const amountInRupees = parseFloat(Number(amount).toFixed(2));
         const orderId = `CB_${Date.now()}_${req.user._id.toString().slice(-6)}`;
+        let returnUrl = process.env.CASHFREE_RETURN_URL?.replace('/buy/success', '/payment/status') || 'http://localhost:3000/payment/status';
         const orderRequest = {
             order_id: orderId,
             order_amount: amountInRupees,
@@ -43,7 +44,7 @@ const createOrder = async (req, res) => {
                 customer_phone: user.mobile || user.phone || '9999999999',
             },
             order_meta: {
-                return_url: `${req.body.returnUrl || process.env.CASHFREE_RETURN_URL?.replace('/buy/success', '/payment/status') || 'http://localhost:3000/payment/status'}?order_id={order_id}`,
+                return_url: `${returnUrl}?order_id={order_id}`,
                 notify_url: `${process.env.BACKEND_URL || 'http://localhost:4000'}/api/payment/webhook`,
             },
             order_tags: {

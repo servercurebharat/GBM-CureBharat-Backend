@@ -40,7 +40,8 @@ async function processCommission(saleId) {
         await sale.save();
         return;
     }
-    const baseAmount = sale.businessVolume; // commission base (paise, excl GST)
+    // Client requested to use the raw Plan Price as the commission base instead of BV
+    const baseAmount = plan.price; // commission base (paise, excl GST)
     const cycleMonth = sale.cycleMonth;
     // ── 1. DIRECT INCOME (HCC) ──────────────────────────────────────────────
     const hccRate = await getCommissionRate('hcc_direct_percent', 40);

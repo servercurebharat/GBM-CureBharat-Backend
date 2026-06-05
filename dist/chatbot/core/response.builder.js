@@ -71,7 +71,7 @@ const buildResponse = async (intent, message, user, confidenceScore) => {
             answer: bestFaq.answer,
             data: null,
             suggestions: bestFaq.relatedPrompts || [],
-            confidenceScore: 0.95
+            confidenceScore: 0.98
         };
     }
     let type = 'static';
