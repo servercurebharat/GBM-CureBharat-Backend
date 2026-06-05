@@ -356,10 +356,10 @@ export const hccFAQ: HCCChatbotFAQItem[] = [
   {
     id: 'hcc-hierarchy-basics',
     category: 'Team Growth',
-    question: 'How does the MLM hierarchy work for me?',
+    question: 'How does the GBM hierarchy work for me?',
     answer:
       'As HCC, your immediate focus is your direct sponsor, your own sales, and the referrals you personally bring in.',
-    keywords: ['mlm hierarchy', 'sponsor', 'referrals', 'direct team', 'branch basics'],
+    keywords: ['gbm hierarchy', 'sponsor', 'referrals', 'direct team', 'branch basics'],
     relatedPrompts: ['How does referral onboarding work?', 'How do I become HCM?'],
   },
   {

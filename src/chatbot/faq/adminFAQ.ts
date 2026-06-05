@@ -68,7 +68,7 @@ export const adminFAQ: AdminChatbotFAQItem[] = [
     category: 'Member Management',
     question: 'How do I use the member list effectively?',
     answer:
-      'Use Member List to search, filter, inspect, and manage all members across the MLM network.',
+      'Use Member List to search, filter, inspect, and manage all members across the GBM network.',
     keywords: ['member list', 'members', 'user list', 'member management', 'search member'],
     relatedPrompts: ['How do I inspect a member profile?', 'How do I verify referral relationships?'],
   },
@@ -208,7 +208,7 @@ export const adminFAQ: AdminChatbotFAQItem[] = [
     category: 'Commission Engine',
     question: 'How do leadership bonuses work?',
     answer:
-      'Leadership bonuses are distributed to qualified upper-level leadership roles in the MLM hierarchy.',
+      'Leadership bonuses are distributed to qualified upper-level leadership roles in the GBM hierarchy.',
     keywords: ['leadership bonus', 'leadership income', 'sh bonus', 'top bonus', 'uplink bonus'],
     relatedPrompts: ['How does the commission engine work?', 'How does rank progression work?'],
   },
@@ -308,7 +308,7 @@ export const adminFAQ: AdminChatbotFAQItem[] = [
     category: 'Product Management',
     question: 'What makes a plan commissionable?',
     answer:
-      'A commissionable plan is eligible for MLM income distribution through business volume calculations.',
+      'A commissionable plan is eligible for GBM income distribution through business volume calculations.',
     keywords: ['commissionable plan', 'business volume', 'bv', 'commission plan', 'income eligible'],
     relatedPrompts: ['How does the commission engine work?', 'Why is a commission missing?'],
   },
