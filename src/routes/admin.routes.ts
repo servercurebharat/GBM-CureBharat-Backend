@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails } from '../controllers/admin.controller';
+import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails, sendKycLink } from '../controllers/admin.controller';
 import { getAdminTree } from '../controllers/user.controller';
 import { getStatePerformance } from '../controllers/analytics.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -23,5 +23,6 @@ router.get('/tree', getAdminTree);
 router.post('/manual-adjustment', createManualAdjustment);
 router.get('/state-performance', getStatePerformance);
 router.post('/announcements', sendAnnouncement);
+router.post('/sales/:id/send-kyc-link', sendKycLink);
 
 export default router;

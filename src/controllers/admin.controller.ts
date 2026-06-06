@@ -4,8 +4,9 @@ import User from '../models/User';
 import Wallet from '../models/Wallet';
 import Notification from '../models/Notification';
 import ActivityLog from '../models/ActivityLog';
+import Sale from '../models/Sale';
 import { createNotification } from './notification.controller';
-import { sendKYCStatusMail, sendBankStatusMail } from '../lib/mailer';
+import { sendKYCStatusMail, sendBankStatusMail, sendEmail } from '../lib/mailer';
 
 /**
  * GET /api/admin/commission-config
@@ -366,5 +367,42 @@ export const sendAnnouncement = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[Admin] sendAnnouncement error:', error);
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /api/admin/sales/:id/send-kyc-link
+ * Send an email to the customer with a link to complete their KYC profile
+ */
+export const sendKycLink = async (req: Request, res: Response) => {
+  try {
+    const saleId = req.params.id;
+    const sale = await Sale.findById(saleId).populate('plan');
+    if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
+    
+    if (!sale.customerEmail) return res.status(400).json({ success: false, message: 'Customer has no email address on file' });
+
+    let frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').trim();
+    if (!frontendUrl.startsWith('http')) frontendUrl = `https://${frontendUrl}`;
+    const kycLink = `${frontendUrl}/customer-kyc/${sale._id}`;
+    const planName = (sale.plan as any)?.name || 'Wellness Plan';
+
+    const emailHtml = `
+      <h3>Action Required: Complete Your Profile</h3>
+      <p>Dear ${sale.customerName},</p>
+      <p>Your enrollment for <strong>${planName}</strong> requires profile completion. (Policy ID: ${sale.policyId})</p>
+      <p>To generate your official Policy Document and Health Cards, please complete your detailed KYC profile by clicking the button below.</p>
+      <div style="margin: 30px 0;">
+        <a href="${kycLink}" style="background-color: #49D2B5; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Complete Profile Now</a>
+      </div>
+      <p>If you have any questions, feel free to reply to this email.</p>
+    `;
+
+    await sendEmail(sale.customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml);
+    return res.status(200).json({ success: true, message: 'KYC link sent successfully' });
+
+  } catch (error: any) {
+    console.error('Error sending KYC link:', error);
+    return res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
