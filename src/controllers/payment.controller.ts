@@ -149,18 +149,21 @@ export const verifyPayment = async (req: any, res: Response) => {
 // ─────────────────────────────────────────────
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
-    const rawBody   = JSON.stringify(req.body);
-    const signature = (req.headers['x-webhook-signature'] as string) || '';
-    const timestamp = (req.headers['x-webhook-timestamp'] as string) || '';
+    const rawBody   = (req as any).rawBody;
+    const signature = (req.headers['x-webhook-signature'] as string);
+    const timestamp = (req.headers['x-webhook-timestamp'] as string);
 
-    // ── Option A: Use SDK's built-in webhook verifier ─────────────────────────
-    if (signature && timestamp) {
-      try {
-        cashfree.PGVerifyWebhookSignature(signature, rawBody, timestamp);
-      } catch (sigErr) {
-        console.warn('[Webhook] Signature verification failed — possible spoofed request');
-        return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
-      }
+    if (!signature || !timestamp) {
+      console.warn('[Webhook] Missing signature headers');
+      return res.status(401).json({ success: false, message: 'Missing webhook signature headers' });
+    }
+
+    // Verify signature using Cashfree SDK
+    try {
+      cashfree.PGVerifyWebhookSignature(signature, rawBody, timestamp);
+    } catch (sigErr) {
+      console.warn('[Webhook] Signature verification failed — spoofed request blocked');
+      return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
     }
 
     const event     = req.body;
