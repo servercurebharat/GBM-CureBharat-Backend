@@ -42,7 +42,7 @@ export const getSeller = async (req: Request, res: Response) => {
       });
     }
 
-    const plans = await Plan.find({ isActive: true, isCommissionable: true })
+    const plans = await Plan.find({ isActive: true })
       .select('name description price businessVolume gstPercent category')
       .lean();
 
