@@ -10,6 +10,16 @@ export interface ISale extends Document {
   customerPAN?: string;          // PAN number (uppercase)
   nomineeName?: string;
   nomineeRelation?: string;
+  isPolicyForOther?: boolean;
+  beneficiaryName?: string;
+  beneficiaryDOB?: string;
+  beneficiaryGender?: string;
+  beneficiaryMobile?: string;
+  beneficiaryEmail?: string;
+  beneficiaryAddress?: string;
+  beneficiaryRelation?: string;
+  coverageStartDate?: Date;
+  coverageEndDate?: Date;
   enrollmentType: 'customer' | 'distributor';  // customer = policy only, distributor = gets HCC account
   plan: mongoose.Types.ObjectId;
   saleAmount: number;        // total billed in paise (price + GST)
@@ -53,6 +63,16 @@ const saleSchema = new Schema<ISale>({
   customerPAN:      { type: String },
   nomineeName:      { type: String },
   nomineeRelation:  { type: String },
+  isPolicyForOther: { type: Boolean, default: false },
+  beneficiaryName:  { type: String },
+  beneficiaryDOB:   { type: String },
+  beneficiaryGender:{ type: String },
+  beneficiaryMobile:{ type: String },
+  beneficiaryEmail: { type: String },
+  beneficiaryAddress:{ type: String },
+  beneficiaryRelation:{ type: String },
+  coverageStartDate:{ type: Date },
+  coverageEndDate:  { type: Date },
   enrollmentType:   { type: String, enum: ['customer', 'distributor'], default: 'customer' },
   plan:             { type: Schema.Types.ObjectId, ref: 'Plan', required: true },
   saleAmount:       { type: Number, required: true },

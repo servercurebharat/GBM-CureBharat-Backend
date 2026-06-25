@@ -41,10 +41,10 @@ export async function processCommission(saleId: string): Promise<void> {
   const cycleMonth = sale.cycleMonth;
 
   // ── 1. DIRECT INCOME (HCC) ──────────────────────────────────────────────
-  const hccRate = await getCommissionRate('hcc_direct_percent', 40);
   const seller = await User.findById(sale.sellerId);
   if (!seller) { console.error(`[Commission] Seller not found for sale ${saleId}`); return; }
 
+  const hccRate = seller.customCommissionRate !== undefined && seller.customCommissionRate !== null ? seller.customCommissionRate / 100 : await getCommissionRate('hcc_direct_percent', 40);
   const directIncome = Math.round(baseAmount * hccRate);
   await addToWallet({
     userId: seller._id as Types.ObjectId,
@@ -128,7 +128,8 @@ export async function processCommission(saleId: string): Promise<void> {
         cycleMonth,
       });
     } else {
-      hcmIncome = Math.round(directIncome * hcmRate);
+      const actualHcmRate = hcm.customCommissionRate !== undefined && hcm.customCommissionRate !== null ? hcm.customCommissionRate / 100 : hcmRate;
+      hcmIncome = Math.round(directIncome * actualHcmRate);
       await addToWallet({
         userId: hcm._id as Types.ObjectId,
         amount: hcmIncome,
@@ -164,7 +165,8 @@ export async function processCommission(saleId: string): Promise<void> {
   if (hba) {
     sale.hbaId = hba._id as Types.ObjectId;
     const potentialHcmIncome = Math.round(directIncome * hcmRate);
-    hbaIncome = Math.round(potentialHcmIncome * hbaRate);
+    const actualHbaRate = hba.customCommissionRate !== undefined && hba.customCommissionRate !== null ? hba.customCommissionRate / 100 : hbaRate;
+    hbaIncome = Math.round(potentialHcmIncome * actualHbaRate);
     const hbaSourceUser = hcm || seller;
     await addToWallet({
       userId: hba._id as Types.ObjectId,
@@ -190,7 +192,8 @@ export async function processCommission(saleId: string): Promise<void> {
 
   if (sh) {
     sale.shId = sh._id as Types.ObjectId;
-    const shIncome = Math.round(baseAmount * shRate);
+    const actualShRate = sh.customCommissionRate !== undefined && sh.customCommissionRate !== null ? sh.customCommissionRate / 100 : shRate;
+    const shIncome = Math.round(baseAmount * actualShRate);
     const shSourceUser = hba || hcm || seller;
     await addToWallet({
       userId: sh._id as Types.ObjectId,

@@ -75,6 +75,7 @@ export interface IUser extends Document {
   lastLoginAt?: Date;
   totalTimeSpent: number; // in seconds
   createdAt: Date;
+  customCommissionRate?: number;
 }
 
 const userSchema = new Schema<IUser>({
@@ -150,6 +151,7 @@ const userSchema = new Schema<IUser>({
   lastLoginIP: { type: String },
   lastLoginAt: { type: Date },
   totalTimeSpent: { type: Number, default: 0 },
+  customCommissionRate: { type: Number },
 }, { timestamps: true });
 
 // Indexes

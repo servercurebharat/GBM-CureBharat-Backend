@@ -22,6 +22,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const role = searchParams.get('role');
   const status = searchParams.get('status');
   const search = searchParams.get('search');
+  const sort = searchParams.get('sort');
 
   const filter: Record<string, unknown> = {};
   if (role) filter.role = role;
@@ -34,9 +35,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ];
   }
 
+  let sortOptions: any = { createdAt: -1 };
+  if (sort === 'oldest') {
+    sortOptions = { createdAt: 1 };
+  } else if (sort === 'recent' || sort === 'newest') {
+    sortOptions = { createdAt: -1 };
+  }
+
   const [users, total] = await Promise.all([
     User.find(filter)
       .select('-password')
+      .sort(sortOptions)
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),

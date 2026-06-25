@@ -166,6 +166,14 @@ export const verifyPayment = async (req: Request, res: Response) => {
       nomineeRelation,
       enrollmentType = 'customer',   // 'customer' or 'distributor'
       sourceType = 'public_link',
+      isPolicyForOther,
+      policyHolderName,
+      policyHolderDOB,
+      policyHolderGender,
+      policyHolderMobile,
+      policyHolderEmail,
+      policyHolderAddress,
+      policyHolderRelation,
     } = req.body;
 
     if (!orderId || !refCode || !planId) {
@@ -243,6 +251,16 @@ export const verifyPayment = async (req: Request, res: Response) => {
       customerPAN:       customerPAN ? customerPAN.toUpperCase() : undefined,
       nomineeName,
       nomineeRelation,
+      isPolicyForOther,
+      beneficiaryName:   isPolicyForOther ? policyHolderName : undefined,
+      beneficiaryDOB:    isPolicyForOther ? policyHolderDOB : undefined,
+      beneficiaryGender: isPolicyForOther ? policyHolderGender : undefined,
+      beneficiaryMobile: isPolicyForOther ? policyHolderMobile : undefined,
+      beneficiaryEmail:  isPolicyForOther ? policyHolderEmail : undefined,
+      beneficiaryAddress: isPolicyForOther ? policyHolderAddress : undefined,
+      beneficiaryRelation: isPolicyForOther ? policyHolderRelation : undefined,
+      coverageStartDate: new Date(),
+      coverageEndDate:   new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
       enrollmentType,
       saleAmount:        totalPaise,
       businessVolume:    plan.businessVolume,
@@ -358,9 +376,29 @@ export const verifyPayment = async (req: Request, res: Response) => {
         `;
       }
 
+      // Send Welcome/KYC email
+      // If the policy is for someone else, the KYC link email should go to the beneficiary as well
+      const targetEmail = (isPolicyForOther && policyHolderEmail) ? policyHolderEmail : customerEmail;
+      
       // Non-blocking email send
-      sendEmail(customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
+      sendEmail(targetEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
         .catch(err => console.error('[Public] Failed to send customer KYC email:', err));
+      
+      // Also send login details to distributor if they registered
+      if (enrollmentType === 'distributor' && isPolicyForOther && customerEmail) {
+        const distHtml = `
+          <h3>Welcome to the CureBharat Family!</h3>
+          <p>Dear ${customerName},</p>
+          <p>Your Distributor Account has been successfully created!</p>
+          <div style="background-color: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Member ID / Login:</strong> ${newUserAccount?.memberId || customerMobile}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Password:</strong> 123456</p>
+          </div>
+          <p>The policy document for ${policyHolderName} will be generated once they complete their KYC via the link sent to their email.</p>
+        `;
+        sendEmail(customerEmail, 'Your CureBharat Distributor Account', distHtml)
+          .catch(err => console.error('[Public] Failed to send distributor email:', err));
+      }
     }
 
     // ── Trigger Commission (async) ─────────────────────────────────────────

@@ -406,3 +406,77 @@ export const sendKycLink = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+/**
+ * POST /api/admin/custom-commission
+ * Set custom commission rate for an individual member
+ */
+export const setCustomCommission = async (req: Request, res: Response) => {
+  try {
+    const { memberId, customCommissionRate } = req.body;
+    
+    if (!memberId) {
+      return res.status(400).json({ success: false, message: 'Member ID is required' });
+    }
+
+    const user = await User.findOne({ memberId });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
+    }
+
+    // Set or unset the custom rate
+    if (customCommissionRate === '' || customCommissionRate === null || customCommissionRate === undefined) {
+      user.customCommissionRate = undefined;
+    } else {
+      user.customCommissionRate = parseFloat(customCommissionRate);
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `Commission override for ${user.memberId} updated successfully.`,
+      data: { memberId: user.memberId, customCommissionRate: user.customCommissionRate }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * GET /api/admin/custom-commission
+ * Get list of all users with custom commission rates
+ */
+export const getCustomCommissions = async (req: Request, res: Response) => {
+  try {
+    const users = await User.find({ 
+      customCommissionRate: { $exists: true, $ne: null } 
+    }).select('name memberId role rank customCommissionRate state');
+
+    res.json({ success: true, data: users });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * DELETE /api/admin/users/:id
+ * Delete a user permanently
+ */
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    // Also delete their wallet to keep database clean
+    await Wallet.deleteOne({ user: id });
+    await User.deleteOne({ _id: id });
+    
+    res.json({ success: true, message: 'User deleted permanently' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
