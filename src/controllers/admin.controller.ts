@@ -460,6 +460,109 @@ export const getCustomCommissions = async (req: Request, res: Response) => {
 };
 
 /**
+ * PUT /api/admin/users/:id/profile
+ * Admin can fully edit any member's profile details
+ * (no OTP or bank verification restrictions)
+ */
+export const adminUpdateMemberProfile = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    let {
+      name, email, mobile, gender, dob, state,
+      occupation, maritalStatus, alternateMobile,
+      address, bankDetails, nomineeDetails, kycDocuments,
+      profileImage
+    } = req.body;
+
+    // If using FormData, nested objects might come as strings
+    try { if (typeof address === 'string') address = JSON.parse(address); } catch(e) { address = {}; }
+    try { if (typeof bankDetails === 'string') bankDetails = JSON.parse(bankDetails); } catch(e) { bankDetails = {}; }
+    try { if (typeof nomineeDetails === 'string') nomineeDetails = JSON.parse(nomineeDetails); } catch(e) { nomineeDetails = {}; }
+    try { if (typeof kycDocuments === 'string') kycDocuments = JSON.parse(kycDocuments); } catch(e) { kycDocuments = {}; }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Handle File Uploads
+    const files = req.files as any;
+    const getUrl = (fieldname: string) => files?.[fieldname]?.[0]?.path;
+
+    const af = getUrl('aadhaarFront');
+    const ab = getUrl('aadhaarBack');
+    const pc = getUrl('panCard');
+    const bp = getUrl('bankProof');
+    const sf = getUrl('selfie');
+    const pi = getUrl('profileImage');
+
+    // Personal info
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    if (mobile !== undefined) user.mobile = mobile;
+    if (gender !== undefined) user.gender = gender;
+    if (dob !== undefined) user.dob = dob ? new Date(dob) : undefined;
+    if (state !== undefined) user.state = state;
+    if (occupation !== undefined) user.occupation = occupation;
+    if (maritalStatus !== undefined) user.maritalStatus = maritalStatus;
+    if (alternateMobile !== undefined) user.alternateMobile = alternateMobile;
+    if (profileImage !== undefined) user.profileImage = profileImage;
+    if (pi) user.profileImage = pi;
+
+    // Address
+    if (address !== undefined) {
+      user.address = { ...(user.address || {}), ...address };
+    }
+
+    // Bank details — admin bypasses OTP, sets verified directly
+    if (bankDetails !== undefined) {
+      user.bankDetails = {
+        ...(user.bankDetails || {}),
+        ...bankDetails,
+        verificationStatus: 'verified',
+      };
+    }
+
+    // Nominee details
+    if (nomineeDetails !== undefined) {
+      user.nomineeDetails = { ...(user.nomineeDetails || {}), ...nomineeDetails };
+    }
+
+    // KYC documents (numbers + document URLs)
+    if (kycDocuments !== undefined || af || ab || pc || bp || sf) {
+      user.kycDocuments = { ...(user.kycDocuments || {}), ...(kycDocuments || {}) };
+      if (af) user.kycDocuments.aadhaarFrontUrl = af;
+      if (ab) user.kycDocuments.aadhaarBackUrl = ab;
+      if (pc) user.kycDocuments.panUrl = pc;
+      if (bp) user.kycDocuments.bankProofUrl = bp;
+      if (sf) user.kycDocuments.selfieUrl = sf;
+    }
+
+    await user.save();
+
+    // Activity log
+    await ActivityLog.create({
+      userId: (req as any).user._id,
+      userName: (req as any).user.name,
+      userRole: 'admin',
+      action: 'ADMIN_PROFILE_EDIT',
+      category: 'system',
+      details: `Admin edited profile of member ${user.memberId} (${user.name})`,
+      ipAddress: req.ip,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Member profile updated successfully',
+      data: user,
+    });
+  } catch (error: any) {
+    console.error('[Admin] adminUpdateMemberProfile Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
  * DELETE /api/admin/users/:id
  * Delete a user permanently
  */
@@ -470,11 +573,11 @@ export const deleteUser = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
+
     // Also delete their wallet to keep database clean
     await Wallet.deleteOne({ user: id });
     await User.deleteOne({ _id: id });
-    
+
     res.json({ success: true, message: 'User deleted permanently' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
