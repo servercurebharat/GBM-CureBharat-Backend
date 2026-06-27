@@ -23,13 +23,24 @@ export interface ICustomerKYC extends Document {
   state: string;
   pincode: string;
 
-  // Family / Nominees
+  // Family
   familyDetails: Array<{
     name: string;
     relation: string;
     dob: string;
     gender: string;
   }>;
+
+  // Nominee
+  nomineeName?: string;
+  nomineeRelation?: string;
+  nomineeDOB?: string;
+  nomineeContact?: string;
+
+  // Health
+  existingMedicalConditions?: string;
+  currentMedications?: string;
+  lifestyle?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -61,6 +72,15 @@ const customerKycSchema = new Schema<ICustomerKYC>({
     dob: String,
     gender: String,
   }],
+
+  nomineeName: String,
+  nomineeRelation: String,
+  nomineeDOB: String,
+  nomineeContact: String,
+
+  existingMedicalConditions: String,
+  currentMedications: String,
+  lifestyle: String,
 
 }, { timestamps: true });
 

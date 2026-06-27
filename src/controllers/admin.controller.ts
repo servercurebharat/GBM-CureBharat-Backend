@@ -5,6 +5,7 @@ import Wallet from '../models/Wallet';
 import Notification from '../models/Notification';
 import ActivityLog from '../models/ActivityLog';
 import Sale from '../models/Sale';
+import CustomerKYC from '../models/CustomerKYC';
 import { createNotification } from './notification.controller';
 import { sendKYCStatusMail, sendBankStatusMail, sendEmail } from '../lib/mailer';
 
@@ -581,5 +582,119 @@ export const deleteUser = async (req: Request, res: Response) => {
     res.json({ success: true, message: 'User deleted permanently' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * PUT /api/admin/customers/:id/profile
+ * Admin updates a customer's basic info and KYC
+ */
+export const adminUpdateCustomerProfile = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params; // Sale ID
+    let { saleData, kycData } = req.body;
+
+    // Parse stringified JSON if coming from FormData
+    try { if (typeof saleData === 'string') saleData = JSON.parse(saleData); } catch(e) { saleData = {}; }
+    try { if (typeof kycData === 'string') kycData = JSON.parse(kycData); } catch(e) { kycData = {}; }
+
+    const sale = await Sale.findById(id);
+    if (!sale) {
+      return res.status(404).json({ success: false, message: 'Customer sale not found' });
+    }
+
+    // Update Sale fields
+    if (saleData) {
+      if (saleData.customerName !== undefined) sale.customerName = saleData.customerName;
+      if (saleData.customerMobile !== undefined) sale.customerMobile = saleData.customerMobile;
+      if (saleData.customerEmail !== undefined) sale.customerEmail = saleData.customerEmail;
+      if (saleData.customerState !== undefined) sale.customerState = saleData.customerState;
+      if (saleData.customerDOB !== undefined) sale.customerDOB = saleData.customerDOB;
+      if (saleData.customerPAN !== undefined) sale.customerPAN = saleData.customerPAN;
+      if (saleData.nomineeName !== undefined) sale.nomineeName = saleData.nomineeName;
+      if (saleData.nomineeRelation !== undefined) sale.nomineeRelation = saleData.nomineeRelation;
+      await sale.save();
+    }
+
+    // Update KYC fields
+    if (kycData) {
+      let kyc = await CustomerKYC.findOne({ saleId: id });
+      if (!kyc) {
+        kyc = new CustomerKYC({
+          saleId: id,
+          fullName: saleData?.customerName || sale.customerName || '',
+          mobile: saleData?.customerMobile || sale.customerMobile || '',
+          dob: saleData?.customerDOB || sale.customerDOB || '',
+          email: saleData?.customerEmail || sale.customerEmail || '',
+          gender: '',
+          maritalStatus: '',
+          occupation: '',
+          pan: saleData?.customerPAN || sale.customerPAN || '',
+          addressLine1: '',
+          city: '',
+          state: saleData?.customerState || sale.customerState || '',
+          pincode: '',
+          familyDetails: []
+        });
+      }
+
+      const mergeKyc = (key: string) => {
+        if (kycData[key] !== undefined) (kyc as any)[key] = kycData[key];
+      };
+
+      mergeKyc('fullName');
+      mergeKyc('dob');
+      mergeKyc('gender');
+      mergeKyc('maritalStatus');
+      mergeKyc('occupation');
+      mergeKyc('pan');
+      mergeKyc('mobile');
+      mergeKyc('alternateMobile');
+      mergeKyc('email');
+      mergeKyc('addressLine1');
+      mergeKyc('addressLine2');
+      mergeKyc('city');
+      mergeKyc('state');
+      mergeKyc('pincode');
+      mergeKyc('existingMedicalConditions');
+      mergeKyc('currentMedications');
+      mergeKyc('lifestyle');
+      
+      if (kycData.familyDetails !== undefined) {
+        kyc.familyDetails = kycData.familyDetails;
+      }
+      
+      if (kycData.nomineeName !== undefined) (kyc as any).nomineeName = kycData.nomineeName;
+      if (kycData.nomineeRelation !== undefined) (kyc as any).nomineeRelation = kycData.nomineeRelation;
+      if (kycData.nomineeDOB !== undefined) (kyc as any).nomineeDOB = kycData.nomineeDOB;
+      if (kycData.nomineeContact !== undefined) (kyc as any).nomineeContact = kycData.nomineeContact;
+      
+      const files = req.files as any;
+      if (files?.aadhaarFront?.[0]) (kyc as any).aadhaarFrontUrl = files.aadhaarFront[0].path;
+      if (files?.aadhaarBack?.[0]) (kyc as any).aadhaarBackUrl = files.aadhaarBack[0].path;
+      if (files?.panCard?.[0]) (kyc as any).panUrl = files.panCard[0].path;
+      if (files?.selfie?.[0]) (kyc as any).selfieUrl = files.selfie[0].path;
+
+      await kyc.save();
+    }
+
+    await ActivityLog.create({
+      userId: (req as any).user._id,
+      userName: (req as any).user.name,
+      userRole: 'admin',
+      action: 'ADMIN_CUSTOMER_EDIT',
+      category: 'system',
+      details: `Admin edited profile of customer ${sale.customerName} (Policy: ${sale.policyId})`,
+      ipAddress: req.ip,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Customer profile updated successfully'
+    });
+
+  } catch (error: any) {
+    console.error('[Admin] adminUpdateCustomerProfile Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

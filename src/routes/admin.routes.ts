@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails, sendKycLink, setCustomCommission, getCustomCommissions, deleteUser, adminUpdateMemberProfile } from '../controllers/admin.controller';
+import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails, sendKycLink, setCustomCommission, getCustomCommissions, deleteUser, adminUpdateMemberProfile, adminUpdateCustomerProfile } from '../controllers/admin.controller';
 import { getAdminTree } from '../controllers/user.controller';
 import { getStatePerformance } from '../controllers/analytics.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -27,6 +27,13 @@ router.put('/users/:id/profile', upload.fields([
   { name: 'selfie', maxCount: 1 },
   { name: 'profileImage', maxCount: 1 }
 ]), adminUpdateMemberProfile);
+
+router.put('/customers/:id/profile', upload.fields([
+  { name: 'aadhaarFront', maxCount: 1 },
+  { name: 'aadhaarBack', maxCount: 1 },
+  { name: 'panCard', maxCount: 1 },
+  { name: 'selfie', maxCount: 1 }
+]), adminUpdateCustomerProfile);
 router.put('/users/:id/reset-password', resetUserPassword);
 router.put('/users/:id/bank-verify', verifyBankDetails);
 router.get('/tree', getAdminTree);
