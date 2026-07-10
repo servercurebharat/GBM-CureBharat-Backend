@@ -501,7 +501,7 @@ export const adminUpdateMemberProfile = async (req: Request, res: Response) => {
     if (name !== undefined) user.name = name;
     if (email !== undefined) user.email = email;
     if (mobile !== undefined) user.mobile = mobile;
-    if (gender !== undefined) user.gender = gender;
+    if (gender !== undefined) user.gender = gender === '' ? undefined : gender;
     if (dob !== undefined) user.dob = dob ? new Date(dob) : undefined;
     if (state !== undefined) user.state = state;
     if (occupation !== undefined) user.occupation = occupation;
