@@ -38,7 +38,7 @@ export interface ISale extends Document {
   // Payment — Razorpay (legacy / backward compat)
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
-  paymentMethod: 'cashfree' | 'razorpay';
+  paymentMethod: 'cashfree' | 'razorpay' | 'direct';
   sourceType: 'dashboard' | 'public_link';
   // AutoPay / Subscription
   autopayEnabled: boolean;
@@ -87,7 +87,7 @@ const saleSchema = new Schema<ISale>({
   cashfreePaymentId: { type: String, sparse: true },
   razorpayOrderId:   { type: String },
   razorpayPaymentId: { type: String, sparse: true },
-  paymentMethod:           { type: String, enum: ['cashfree', 'razorpay'], default: 'cashfree' },
+  paymentMethod:           { type: String, enum: ['cashfree', 'razorpay', 'direct'], default: 'cashfree' },
   sourceType:              { type: String, enum: ['dashboard', 'public_link'], default: 'dashboard' },
   // AutoPay / Subscription
   autopayEnabled:          { type: Boolean, default: false },

@@ -111,6 +111,7 @@ const userSchema = new mongoose_1.Schema({
     lastLoginIP: { type: String },
     lastLoginAt: { type: Date },
     totalTimeSpent: { type: Number, default: 0 },
+    customCommissionRate: { type: Number },
 }, { timestamps: true });
 // Indexes
 userSchema.index({ role: 1 });

@@ -56,5 +56,12 @@ const customerKycSchema = new mongoose_1.Schema({
             dob: String,
             gender: String,
         }],
+    nomineeName: String,
+    nomineeRelation: String,
+    nomineeDOB: String,
+    nomineeContact: String,
+    existingMedicalConditions: String,
+    currentMedications: String,
+    lifestyle: String,
 }, { timestamps: true });
 exports.default = mongoose_1.default.model('CustomerKYC', customerKycSchema);

@@ -44,13 +44,32 @@ export async function processCommission(saleId: string): Promise<void> {
   const seller = await User.findById(sale.sellerId);
   if (!seller) { console.error(`[Commission] Seller not found for sale ${saleId}`); return; }
 
-  const hccRate = seller.customCommissionRate !== undefined && seller.customCommissionRate !== null ? seller.customCommissionRate / 100 : await getCommissionRate('hcc_direct_percent', 40);
+  // ── ENTRY SALE LOGIC ────────────────────────────────────────────────────
+  // If this is the seller's first sale (personalSalesCount === 0) and they have a recruiter,
+  // the recruiter receives the Direct Commission and the rest of the chain shifts up.
+  let effectiveSeller = seller;
+  const isEntrySale = (seller.personalSalesCount === 0 && seller.referrerId);
+  if (isEntrySale) {
+    const recruiter = await User.findById(seller.referrerId);
+    if (recruiter) {
+      effectiveSeller = recruiter;
+      console.log(`[Commission] Entry Sale detected! Direct commission shifted to recruiter ${recruiter.memberId}`);
+    }
+  }
+
+  const hccRate = effectiveSeller.customCommissionRate !== undefined && effectiveSeller.customCommissionRate !== null 
+    ? effectiveSeller.customCommissionRate / 100 
+    : await getCommissionRate('hcc_direct_percent', 40);
+  
   const directIncome = Math.round(baseAmount * hccRate);
+  
   await addToWallet({
-    userId: seller._id as Types.ObjectId,
+    userId: effectiveSeller._id as Types.ObjectId,
     amount: directIncome,
     type: 'direct',
-    description: `Direct commission from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
+    description: isEntrySale 
+      ? `Direct commission (Entry Sale of ${seller.name}) - Policy ${sale.policyId}` 
+      : `Direct commission from ${seller.name} (${seller.memberId}) - Policy ${sale.policyId}`,
     sourceUserId: seller._id as Types.ObjectId,
     status: 'provisional',
     cycleMonth,
@@ -62,19 +81,19 @@ export async function processCommission(saleId: string): Promise<void> {
   await seller.save();
 
   // ── 2. HCM OVERRIDE ─────────────────────────────────────────────────────
-  // Skip HCM override if the seller IS an HCM (they already got 40% direct above)
+  // Skip HCM override if the effectiveSeller IS an HCM (they already got 40% direct above)
   const hcmRate = await getCommissionRate('hcm_override_percent', 40);
   let hcm: IUser | null = null;
 
-  const sellerRank = (seller.rank || '').toUpperCase();
-  const isSellerHcmOrAbove = ['HCM', 'HBA', 'SH'].includes(sellerRank);
+  const effectiveSellerRank = (effectiveSeller.rank || '').toUpperCase();
+  const isSellerHcmOrAbove = ['HCM', 'HBA', 'SH'].includes(effectiveSellerRank);
 
-  if (!isSellerHcmOrAbove && seller.referrerId) {
-    hcm = await findNextExactUpline(seller.referrerId as Types.ObjectId, 'HCM');
-  } else if (sellerRank === 'HCM' && seller.referrerId) {
+  if (!isSellerHcmOrAbove && effectiveSeller.referrerId) {
+    hcm = await findNextExactUpline(effectiveSeller.referrerId as Types.ObjectId, 'HCM');
+  } else if (effectiveSellerRank === 'HCM' && effectiveSeller.referrerId) {
     // Seller is HCM — look for HCM *above* them (breakaway scenario handled below)
     // But skip self, go straight up to find HBA-level
-    console.log(`[Commission] Seller is HCM (${seller.memberId}) — skipping HCM self-override, looking for HBA upline`);
+    console.log(`[Commission] Effective Seller is HCM (${effectiveSeller.memberId}) — skipping HCM self-override, looking for HBA upline`);
   }
 
   let hcmIncome = 0;
@@ -83,10 +102,10 @@ export async function processCommission(saleId: string): Promise<void> {
 
     // Check if this is an HCM recruiting another HCM breakaway
     let isBreakaway = false;
-    if (seller.rank === 'HCM' && hcm._id.toString() !== seller._id.toString()) {
+    if (effectiveSeller.rank === 'HCM' && hcm._id.toString() !== effectiveSeller._id.toString()) {
       isBreakaway = true;
     } else {
-      let curr: any = seller;
+      let curr: any = effectiveSeller;
       while (curr && curr.referrerId) {
         if (curr.referrerId.toString() === hcm._id.toString()) {
           if (curr.rank === 'HCM') {
@@ -147,17 +166,17 @@ export async function processCommission(saleId: string): Promise<void> {
   let hba: IUser | null = null;
 
   // When seller is HBA or above, skip HBA override on self — go straight to SH
-  const isSellerHbaOrAbove = ['HBA', 'SH'].includes(sellerRank);
+  const isSellerHbaOrAbove = ['HBA', 'SH'].includes(effectiveSellerRank);
 
   if (!isSellerHbaOrAbove) {
-    const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : seller.referrerId;
+    const searchStartForHba = (hcm && hcm.referrerId) ? hcm.referrerId : effectiveSeller.referrerId;
     if (searchStartForHba) {
       hba = await findNextExactUpline(searchStartForHba as Types.ObjectId, 'HBA');
     }
   } else {
     // Seller is HBA or SH — their own upline for HBA override search starts from their referrer
-    if (seller.referrerId && sellerRank !== 'SH') {
-      hba = await findNextExactUpline(seller.referrerId as Types.ObjectId, 'HBA');
+    if (effectiveSeller.referrerId && effectiveSellerRank !== 'SH') {
+      hba = await findNextExactUpline(effectiveSeller.referrerId as Types.ObjectId, 'HBA');
     }
   }
 
@@ -167,7 +186,7 @@ export async function processCommission(saleId: string): Promise<void> {
     const potentialHcmIncome = Math.round(directIncome * hcmRate);
     const actualHbaRate = hba.customCommissionRate !== undefined && hba.customCommissionRate !== null ? hba.customCommissionRate / 100 : hbaRate;
     hbaIncome = Math.round(potentialHcmIncome * actualHbaRate);
-    const hbaSourceUser = hcm || seller;
+    const hbaSourceUser = hcm || effectiveSeller;
     await addToWallet({
       userId: hba._id as Types.ObjectId,
       amount: hbaIncome,
@@ -183,7 +202,7 @@ export async function processCommission(saleId: string): Promise<void> {
   const shRate = await getCommissionRate('sh_leadership_percent', 2);
   const searchStartForSh = hba 
     ? hba.referrerId 
-    : (hcm ? hcm.referrerId : seller.referrerId);
+    : (hcm ? hcm.referrerId : effectiveSeller.referrerId);
 
   let sh: IUser | null = null;
   if (searchStartForSh) {
@@ -194,7 +213,7 @@ export async function processCommission(saleId: string): Promise<void> {
     sale.shId = sh._id as Types.ObjectId;
     const actualShRate = sh.customCommissionRate !== undefined && sh.customCommissionRate !== null ? sh.customCommissionRate / 100 : shRate;
     const shIncome = Math.round(baseAmount * actualShRate);
-    const shSourceUser = hba || hcm || seller;
+    const shSourceUser = hba || hcm || effectiveSeller;
     await addToWallet({
       userId: sh._id as Types.ObjectId,
       amount: shIncome,

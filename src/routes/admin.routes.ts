@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails, sendKycLink, setCustomCommission, getCustomCommissions, deleteUser, adminUpdateMemberProfile, adminUpdateCustomerProfile } from '../controllers/admin.controller';
+import { getCommissionConfig, updateCommissionConfig, getPendingKYC, getPendingBankUpdates, updateKYCStatus, createManualAdjustment, updateUserStatus, resetUserPassword, sendAnnouncement, verifyBankDetails, sendKycLink, setCustomCommission, getCustomCommissions, deleteUser, adminUpdateMemberProfile, adminUpdateCustomerProfile, exportCustomersXLSX } from '../controllers/admin.controller';
 import { getAdminTree } from '../controllers/user.controller';
 import { getStatePerformance } from '../controllers/analytics.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -19,6 +19,7 @@ router.get('/bank-updates/pending', getPendingBankUpdates);
 router.put('/kyc/:id/status', updateKYCStatus);
 router.put('/users/:id/status', updateUserStatus);
 router.delete('/users/:id', deleteUser);
+router.get('/customers/export', exportCustomersXLSX);
 router.put('/users/:id/profile', upload.fields([
   { name: 'aadhaarFront', maxCount: 1 },
   { name: 'aadhaarBack', maxCount: 1 },

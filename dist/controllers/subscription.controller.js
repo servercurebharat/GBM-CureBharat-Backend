@@ -29,7 +29,7 @@ const CF_HEADERS = {
 // ─────────────────────────────────────────────────────────────────────────────
 const createSubscription = async (req, res) => {
     try {
-        const { planId, refCode, customerName, customerMobile, customerEmail, customerState, customerDOB, customerPAN, enrollmentType, nomineeName, nomineeRelation, } = req.body;
+        const { planId, refCode, customerName, customerMobile, customerEmail, customerState, customerDOB, customerPAN, enrollmentType, nomineeName, nomineeRelation, isPolicyForOther, policyHolderName, policyHolderDOB, policyHolderGender, policyHolderMobile, policyHolderEmail, policyHolderAddress, policyHolderRelation, } = req.body;
         if (!planId || !refCode || !customerName || !customerMobile) {
             return res.status(400).json({ success: false, message: 'planId, refCode, customerName, customerMobile are required' });
         }
@@ -107,6 +107,16 @@ const createSubscription = async (req, res) => {
             enrollmentType: enrollmentType || 'customer',
             nomineeName,
             nomineeRelation,
+            isPolicyForOther,
+            beneficiaryName: isPolicyForOther ? policyHolderName : undefined,
+            beneficiaryDOB: isPolicyForOther ? policyHolderDOB : undefined,
+            beneficiaryGender: isPolicyForOther ? policyHolderGender : undefined,
+            beneficiaryMobile: isPolicyForOther ? policyHolderMobile : undefined,
+            beneficiaryEmail: isPolicyForOther ? policyHolderEmail : undefined,
+            beneficiaryAddress: isPolicyForOther ? policyHolderAddress : undefined,
+            beneficiaryRelation: isPolicyForOther ? policyHolderRelation : undefined,
+            coverageStartDate: new Date(),
+            coverageEndDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
             saleAmount: totalPaise,
             businessVolume: plan.businessVolume,
             cycleMonth: (0, commission_1.getCurrentCycleMonth)(),

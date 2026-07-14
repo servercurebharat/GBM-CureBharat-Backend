@@ -50,7 +50,10 @@ app.use((req, res, next) => {
     }
     next();
 });
-app.use(express_1.default.json({ limit: '50mb' }));
+app.use(express_1.default.json({
+    limit: '50mb',
+    verify: (req, res, buf) => { req.rawBody = buf.toString(); }
+}));
 app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
 app.use((0, cookie_parser_1.default)());
 // Request/Response Logging Middleware

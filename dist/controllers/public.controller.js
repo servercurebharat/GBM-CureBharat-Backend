@@ -35,7 +35,7 @@ const getSeller = async (req, res) => {
                 message: 'This partner link is not active or does not exist.',
             });
         }
-        const plans = await Plan_1.default.find({ isActive: true, isCommissionable: true })
+        const plans = await Plan_1.default.find({ isActive: true })
             .select('name description price businessVolume gstPercent category')
             .lean();
         return res.status(200).json({
@@ -139,7 +139,7 @@ const verifyPayment = async (req, res) => {
     try {
         const { orderId, // Cashfree orderId (CB_SALE_...)
         refCode, planId, customerName, customerMobile, customerEmail, customerState, customerDOB, customerPAN, nomineeName, nomineeRelation, enrollmentType = 'customer', // 'customer' or 'distributor'
-        sourceType = 'public_link', } = req.body;
+        sourceType = 'public_link', isPolicyForOther, policyHolderName, policyHolderDOB, policyHolderGender, policyHolderMobile, policyHolderEmail, policyHolderAddress, policyHolderRelation, } = req.body;
         if (!orderId || !refCode || !planId) {
             return res.status(400).json({ success: false, message: 'orderId, refCode and planId are required' });
         }
@@ -206,6 +206,16 @@ const verifyPayment = async (req, res) => {
             customerPAN: customerPAN ? customerPAN.toUpperCase() : undefined,
             nomineeName,
             nomineeRelation,
+            isPolicyForOther,
+            beneficiaryName: isPolicyForOther ? policyHolderName : undefined,
+            beneficiaryDOB: isPolicyForOther ? policyHolderDOB : undefined,
+            beneficiaryGender: isPolicyForOther ? policyHolderGender : undefined,
+            beneficiaryMobile: isPolicyForOther ? policyHolderMobile : undefined,
+            beneficiaryEmail: isPolicyForOther ? policyHolderEmail : undefined,
+            beneficiaryAddress: isPolicyForOther ? policyHolderAddress : undefined,
+            beneficiaryRelation: isPolicyForOther ? policyHolderRelation : undefined,
+            coverageStartDate: new Date(),
+            coverageEndDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
             enrollmentType,
             saleAmount: totalPaise,
             businessVolume: plan.businessVolume,
@@ -313,9 +323,27 @@ const verifyPayment = async (req, res) => {
           <p>If you have any questions, feel free to reply to this email.</p>
         `;
             }
+            // Send Welcome/KYC email
+            // If the policy is for someone else, the KYC link email should go to the beneficiary as well
+            const targetEmail = (isPolicyForOther && policyHolderEmail) ? policyHolderEmail : customerEmail;
             // Non-blocking email send
-            (0, mailer_1.sendEmail)(customerEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
+            (0, mailer_1.sendEmail)(targetEmail, 'Action Required: Complete Your CureBharat Policy Profile', emailHtml)
                 .catch(err => console.error('[Public] Failed to send customer KYC email:', err));
+            // Also send login details to distributor if they registered
+            if (enrollmentType === 'distributor' && isPolicyForOther && customerEmail) {
+                const distHtml = `
+          <h3>Welcome to the CureBharat Family!</h3>
+          <p>Dear ${customerName},</p>
+          <p>Your Distributor Account has been successfully created!</p>
+          <div style="background-color: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Member ID / Login:</strong> ${newUserAccount?.memberId || customerMobile}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Password:</strong> 123456</p>
+          </div>
+          <p>The policy document for ${policyHolderName} will be generated once they complete their KYC via the link sent to their email.</p>
+        `;
+                (0, mailer_1.sendEmail)(customerEmail, 'Your CureBharat Distributor Account', distHtml)
+                    .catch(err => console.error('[Public] Failed to send distributor email:', err));
+            }
         }
         // ── Trigger Commission (async) ─────────────────────────────────────────
         (0, commission_1.processCommission)(newSale._id.toString()).catch((err) => {
@@ -513,10 +541,10 @@ const getKycByPolicyId = async (req, res) => {
     try {
         const sale = await Sale_1.default.findOne({ policyId: req.params.policyId }).populate('plan');
         if (!sale)
-            return res.status(404).json({ success: false, message: 'Sale/Policy not found' });
+            return res.status(200).json({ success: false, message: 'Sale/Policy not found' });
         const kyc = await CustomerKYC_1.default.findOne({ saleId: sale._id });
         if (!kyc)
-            return res.status(404).json({ success: false, message: 'KYC not submitted yet' });
+            return res.status(200).json({ success: false, message: 'KYC not submitted yet' });
         return res.status(200).json({
             success: true,
             data: {

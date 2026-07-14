@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import * as XLSX from 'xlsx';
 import Config from '../models/Config';
 import User from '../models/User';
 import Wallet from '../models/Wallet';
@@ -6,6 +7,7 @@ import Notification from '../models/Notification';
 import ActivityLog from '../models/ActivityLog';
 import Sale from '../models/Sale';
 import CustomerKYC from '../models/CustomerKYC';
+import Plan from '../models/Plan';
 import { createNotification } from './notification.controller';
 import { sendKYCStatusMail, sendBankStatusMail, sendEmail } from '../lib/mailer';
 
@@ -622,18 +624,18 @@ export const adminUpdateCustomerProfile = async (req: Request, res: Response) =>
       if (!kyc) {
         kyc = new CustomerKYC({
           saleId: id,
-          fullName: saleData?.customerName || sale.customerName || '',
-          mobile: saleData?.customerMobile || sale.customerMobile || '',
-          dob: saleData?.customerDOB || sale.customerDOB || '',
-          email: saleData?.customerEmail || sale.customerEmail || '',
-          gender: '',
-          maritalStatus: '',
-          occupation: '',
-          pan: saleData?.customerPAN || sale.customerPAN || '',
-          addressLine1: '',
-          city: '',
-          state: saleData?.customerState || sale.customerState || '',
-          pincode: '',
+          fullName:     saleData?.customerName  || sale.customerName  || '',
+          mobile:       saleData?.customerMobile || sale.customerMobile || '',
+          dob:          saleData?.customerDOB    || sale.customerDOB    || '',
+          email:        saleData?.customerEmail  || sale.customerEmail  || '',
+          gender:       'N/A',
+          maritalStatus:'N/A',
+          occupation:   'N/A',
+          pan:          saleData?.customerPAN || sale.customerPAN || 'N/A',
+          addressLine1: 'N/A',
+          city:         'N/A',
+          state:        saleData?.customerState || sale.customerState || 'N/A',
+          pincode:      'N/A',
           familyDetails: []
         });
       }
@@ -688,13 +690,152 @@ export const adminUpdateCustomerProfile = async (req: Request, res: Response) =>
       ipAddress: req.ip,
     });
 
+    // Re-fetch updated documents so the frontend can sync its state
+    const updatedSale = await Sale.findById(id).populate('plan').lean();
+    const updatedKyc  = await CustomerKYC.findOne({ saleId: id }).lean();
+
     return res.status(200).json({
       success: true,
-      message: 'Customer profile updated successfully'
+      message: 'Customer profile updated successfully',
+      data: {
+        sale:    updatedSale,
+        kycData: updatedKyc,
+      },
     });
 
   } catch (error: any) {
     console.error('[Admin] adminUpdateCustomerProfile Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/admin/customers/export
+ * Export all customer details to Excel matching Livlong format
+ */
+export const exportCustomersXLSX = async (req: Request, res: Response) => {
+  try {
+    const sales = await Sale.find({}).populate('plan').sort({ createdAt: 1 }).lean();
+
+    const headers = [
+      'Unique ID/ PAN Number',
+      'First Name',
+      'Last Name',
+      'Mobile No',
+      'Date Of Birth',
+      'Gender',
+      'Address',
+      'City',
+      'State',
+      'Pincode',
+      'Email Id',
+      'Plan Name',
+      'Plan Amount w/o GST',
+      'Plan Amount with GST',
+      'Member 1 Full name',
+      'Relationship1',
+      'Gender of Member 1',
+      'DOB of Member 1',
+      'Member 2 Full name',
+      'Relationship2',
+      'Gender of member 2',
+      'DOB of Member 2',
+      'Member 3 Full name',
+      'Relationship3',
+      'Gender of member 3',
+      'DOB of Member 3',
+      'Member 4 Full name',
+      'Relationship4',
+      'Gender of member 4',
+      'DOB of Member 4',
+      'Member 5 Full name',
+      'Relationship5',
+      'Gender of member 5',
+      'DOB of Member 5',
+      'Member 6 Full name',
+      'Relationship6',
+      'Gender of member 6',
+      'DOB of Member 6',
+    ];
+
+    const sheetData: any[][] = [headers];
+
+    const clean = (v: any): string => {
+      const s = String(v ?? '').trim();
+      return s === 'N/A' ? '' : s;
+    };
+
+    const splitName = (full: string): [string, string] => {
+      const parts = full.trim().split(/\s+/);
+      if (parts.length === 1) return [parts[0], ''];
+      return [parts[0], parts.slice(1).join(' ')];
+    };
+
+    for (const sale of sales) {
+      const kyc: any = await CustomerKYC.findOne({ saleId: sale._id }).lean();
+
+      const pan     = clean(sale.customerPAN || kyc?.pan || '');
+      const full    = clean(sale.customerName || kyc?.fullName || '');
+      const [fName, lName] = splitName(full);
+      const mobile  = clean(sale.customerMobile || kyc?.mobile || '');
+      const dob     = clean(sale.customerDOB || kyc?.dob || '');
+      const gender  = clean(kyc?.gender || '');
+      const address = clean(kyc?.addressLine1 || '');
+      const city    = clean(kyc?.city || '');
+      const state   = clean(sale.customerState || kyc?.state || '');
+      const pincode = clean(kyc?.pincode || '');
+      const email   = clean(sale.customerEmail || kyc?.email || '');
+
+      const planName = (sale.plan as any)?.name || 'Health Plan';
+      const planPriceWithoutGst = (sale.plan as any)?.price
+        ? ((sale.plan as any).price / 100).toFixed(2)
+        : (sale.saleAmount ? ((sale.saleAmount / 1.18) / 100).toFixed(2) : '');
+      const planPriceWithGst = sale.saleAmount
+        ? (sale.saleAmount / 100).toFixed(2)
+        : ((sale.plan as any)?.price ? (((sale.plan as any).price * 1.18) / 100).toFixed(2) : '');
+
+      const family: any[] = kyc?.familyDetails || [];
+      const memberCells: string[] = [];
+      for (let n = 0; n < 6; n++) {
+        const m = family[n];
+        memberCells.push(clean(m?.name || ''));
+        memberCells.push(clean(m?.relation || ''));
+        memberCells.push(clean(m?.gender || ''));
+        memberCells.push(clean(m?.dob || ''));
+      }
+
+      const row = [
+        pan, fName, lName, mobile, dob, gender,
+        address, city, state, pincode, email,
+        planName, planPriceWithoutGst, planPriceWithGst,
+        ...memberCells,
+      ];
+      sheetData.push(row);
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    const colWidths = [
+      { wch: 18 }, { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
+      { wch: 40 }, { wch: 16 }, { wch: 18 }, { wch: 10 }, { wch: 30 },
+      { wch: 22 }, { wch: 20 }, { wch: 20 },
+      ...Array(6).fill(null).flatMap(() => [
+        { wch: 28 }, { wch: 14 }, { wch: 10 }, { wch: 14 }
+      ])
+    ];
+    ws['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="CureBharat_Customers_Export.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return res.send(buffer);
+
+  } catch (error: any) {
+    console.error('[Admin] exportCustomersXLSX Error:', error);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

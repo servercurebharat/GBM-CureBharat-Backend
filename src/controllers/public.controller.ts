@@ -612,10 +612,10 @@ export const getKycSale = async (req: Request, res: Response) => {
 export const getKycByPolicyId = async (req: Request, res: Response) => {
   try {
     const sale = await Sale.findOne({ policyId: req.params.policyId }).populate('plan');
-    if (!sale) return res.status(404).json({ success: false, message: 'Sale/Policy not found' });
+    if (!sale) return res.status(200).json({ success: false, message: 'Sale/Policy not found' });
     
     const kyc = await CustomerKYC.findOne({ saleId: sale._id });
-    if (!kyc) return res.status(404).json({ success: false, message: 'KYC not submitted yet' });
+    if (!kyc) return res.status(200).json({ success: false, message: 'KYC not submitted yet' });
     
     return res.status(200).json({
       success: true,
