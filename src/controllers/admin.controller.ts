@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import Config from '../models/Config';
 import User from '../models/User';
 import Wallet from '../models/Wallet';
@@ -732,6 +732,10 @@ export const exportCustomersXLSX = async (req: Request, res: Response) => {
       'Plan Name',
       'Plan Amount w/o GST',
       'Plan Amount with GST',
+      'Nominee Name',
+      'Nominee Relationship',
+      'Nominee Date of Birth',
+      'Nominee Contact Number',
       'Member 1 Full name',
       'Relationship1',
       'Gender of Member 1',
@@ -804,10 +808,19 @@ export const exportCustomersXLSX = async (req: Request, res: Response) => {
         memberCells.push(clean(m?.dob || ''));
       }
 
+      const nomineeName     = clean(kyc?.nomineeName || sale.nomineeName || '');
+      const nomineeRelation = clean(kyc?.nomineeRelation || sale.nomineeRelation || '');
+      const nomineeDOB      = clean(kyc?.nomineeDOB || '');
+      const nomineeContact  = clean(kyc?.nomineeContact || '');
+
       const row = [
         pan, fName, lName, mobile, dob, gender,
         address, city, state, pincode, email,
         planName, planPriceWithoutGst, planPriceWithGst,
+        nomineeName,
+        nomineeRelation,
+        nomineeDOB,
+        nomineeContact,
         ...memberCells,
       ];
       sheetData.push(row);
@@ -816,10 +829,33 @@ export const exportCustomersXLSX = async (req: Request, res: Response) => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
+    // Apply yellow highlighter color to header row cells
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          fill: {
+            patternType: 'solid',
+            fgColor: { rgb: 'FFFF00' } // Yellow highlighter fill
+          },
+          font: {
+            bold: true,
+            color: { rgb: '000000' } // Black bold text
+          },
+          alignment: {
+            horizontal: 'center',
+            vertical: 'center'
+          }
+        };
+      }
+    }
+
     const colWidths = [
       { wch: 18 }, { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
       { wch: 40 }, { wch: 16 }, { wch: 18 }, { wch: 10 }, { wch: 30 },
       { wch: 22 }, { wch: 20 }, { wch: 20 },
+      { wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 16 },
       ...Array(6).fill(null).flatMap(() => [
         { wch: 28 }, { wch: 14 }, { wch: 10 }, { wch: 14 }
       ])
