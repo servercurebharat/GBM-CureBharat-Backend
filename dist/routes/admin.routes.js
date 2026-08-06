@@ -18,6 +18,7 @@ router.get('/bank-updates/pending', admin_controller_1.getPendingBankUpdates);
 router.put('/kyc/:id/status', admin_controller_1.updateKYCStatus);
 router.put('/users/:id/status', admin_controller_1.updateUserStatus);
 router.delete('/users/:id', admin_controller_1.deleteUser);
+router.get('/customers/export', admin_controller_1.exportCustomersXLSX);
 router.put('/users/:id/profile', cloudinary_1.upload.fields([
     { name: 'aadhaarFront', maxCount: 1 },
     { name: 'aadhaarBack', maxCount: 1 },

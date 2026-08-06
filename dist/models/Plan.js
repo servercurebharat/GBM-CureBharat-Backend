@@ -43,6 +43,10 @@ const planSchema = new mongoose_1.Schema({
     gstPercent: { type: Number, default: 18 },
     description: { type: String },
     brochureUrl: { type: String },
+    brochures: [{
+            language: String,
+            url: String
+        }],
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 exports.default = mongoose_1.default.models.Plan || mongoose_1.default.model('Plan', planSchema);

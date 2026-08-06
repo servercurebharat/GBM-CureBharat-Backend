@@ -68,7 +68,7 @@ const saleSchema = new mongoose_1.Schema({
     cashfreePaymentId: { type: String, sparse: true },
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String, sparse: true },
-    paymentMethod: { type: String, enum: ['cashfree', 'razorpay'], default: 'cashfree' },
+    paymentMethod: { type: String, enum: ['cashfree', 'razorpay', 'direct'], default: 'cashfree' },
     sourceType: { type: String, enum: ['dashboard', 'public_link'], default: 'dashboard' },
     // AutoPay / Subscription
     autopayEnabled: { type: Boolean, default: false },

@@ -8,7 +8,8 @@ export interface IPlan extends Document {
   isCommissionable: boolean;
   gstPercent: number;
   description: string;
-  brochureUrl?: string;
+  brochureUrl?: string; // Legacy fallback
+  brochures?: { language: string, url: string }[];
   isActive: boolean;
 }
 
@@ -21,6 +22,10 @@ const planSchema = new Schema<IPlan>({
   gstPercent: { type: Number, default: 18 },
   description: { type: String },
   brochureUrl: { type: String },
+  brochures: [{
+    language: String,
+    url: String
+  }],
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 
