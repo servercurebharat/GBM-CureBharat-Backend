@@ -132,6 +132,20 @@ export const getMySales = async (req: any, res: Response) => {
       criteria.push({ sellerId: req.query.sellerId });
     }
 
+    // Month filter (format: YYYY-MM)
+    if (req.query.month && req.query.month !== 'all') {
+      const [year, month] = (req.query.month as string).split('-');
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      
+      criteria.push({
+        createdAt: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      });
+    }
+
     if (criteria.length > 0) {
       query = { $and: criteria };
     }

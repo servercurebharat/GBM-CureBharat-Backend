@@ -280,6 +280,17 @@ export const getAllTransactions = async (req: any, res: Response) => {
       pipeline.push({ $match: { 'ledger.type': type.toLowerCase() } });
     }
 
+    if (req.query.month && req.query.month !== 'all') {
+      const [year, month] = (req.query.month as string).split('-');
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      pipeline.push({ 
+        $match: { 
+          'ledger.date': { $gte: startDate, $lte: endDate } 
+        } 
+      });
+    }
+
     pipeline.push(
       { $sort: { 'ledger.date': -1 } },
       { 
