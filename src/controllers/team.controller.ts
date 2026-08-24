@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import User from '../models/User';
 import Sale from '../models/Sale';
+import Wallet from '../models/Wallet';
 import mongoose from 'mongoose';
 
 export const getTeamStats = async (req: any, res: Response) => {
@@ -102,11 +103,15 @@ export const getTeamList = async (req: any, res: Response) => {
       });
       const teamSalesValue = sales.reduce((acc, s) => acc + s.saleAmount, 0);
 
+      // Fetch actual wallet earnings instead of fake 2% logic
+      const wallet = await Wallet.findOne({ user: m._id }).lean() as any;
+      const realIncome = wallet ? wallet.totalEarned : 0;
+
       return {
         ...m,
         directCount,
         teamSalesValue,
-        overrideValue: Math.round(teamSalesValue * 0.02) // Example 2% override for display
+        overrideValue: realIncome 
       };
     }));
 
