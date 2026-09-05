@@ -7,7 +7,7 @@ import Notification from '../models/Notification';
 import ActivityLog from '../models/ActivityLog';
 import Sale from '../models/Sale';
 import CustomerKYC from '../models/CustomerKYC';
-import Plan from '../models/Plan';
+import '../models/Plan';
 import { createNotification } from './notification.controller';
 import { sendKYCStatusMail, sendBankStatusMail, sendEmail } from '../lib/mailer';
 

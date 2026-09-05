@@ -5,6 +5,7 @@ import User from '../models/User';
 import Wallet from '../models/Wallet';
 import OTP from '../models/OTP';
 import { sendOTPMail, sendWelcomeMail } from '../lib/mailer';
+import { sendWhatsAppOTP } from '../lib/whatsapp';
 import { logActivity } from '../lib/activityLogger';
 import { createNotification } from './notification.controller';
 // EPin import removed
@@ -95,18 +96,23 @@ export const login = async (req: Request, res: Response) => {
           { upsert: true, new: true }
         );
 
-        // Send email
-        const isSent = await sendOTPMail(user.email, code);
+        // Send email and WhatsApp
+        const [isEmailSent, isWhatsappSent] = await Promise.all([
+          sendOTPMail(user.email, code),
+          sendWhatsAppOTP(user.mobile, code)
+        ]);
+        const isSent = isEmailSent || isWhatsappSent;
+
         if (!isSent) {
-          console.warn(`\n[OTP FALLBACK] SMTP transmission failed for ${user.email}.\n[OTP FALLBACK] DEV OTP CODE GENERATED: ${code}\n[OTP FALLBACK] Please type this code in the frontend login form to proceed.\n`);
+          console.warn(`\n[OTP FALLBACK] Transmission failed for ${user.email} / ${user.mobile}.\n[OTP FALLBACK] DEV OTP CODE GENERATED: ${code}\n[OTP FALLBACK] Please type this code in the frontend login form to proceed.\n`);
         } else {
-          console.log(`[AUTH] 2-step verification code sent to: ${user.email}`);
+          console.log(`[AUTH] 2-step verification code sent to: ${user.email} and ${user.mobile}`);
         }
         return res.status(200).json({
           success: true,
           requiresOTP: true,
           email: user.email,
-          message: 'A 6-digit verification code has been sent to your registered email address.'
+          message: `We sent a secure 6-digit code to ${user.email} and your registered WhatsApp number.`
         });
       } else {
         // Verify submitted OTP
@@ -186,16 +192,23 @@ export const sendOTP = async (req: Request, res: Response) => {
       { upsert: true, new: true }
     );
 
-    // Send the email via SMTP Nodemailer
-    const isSent = await sendOTPMail(email, otp);
+    // Find user to get mobile number
+    const user: any = await User.findOne({ email }).lean();
+
+    // Send the email and WhatsApp (if mobile is available)
+    const [isEmailSent, isWhatsappSent] = await Promise.all([
+      sendOTPMail(email, otp),
+      user?.mobile ? sendWhatsAppOTP(user.mobile, otp) : Promise.resolve(false)
+    ]);
+    const isSent = isEmailSent || isWhatsappSent;
 
     if (!isSent) {
-      return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please try again later.' });
+      return res.status(500).json({ success: false, message: 'Failed to send OTP via Email or WhatsApp. Please try again later.' });
     }
 
     return res.status(200).json({ 
       success: true, 
-      message: 'OTP sent successfully to your email.' 
+      message: `We sent a secure 6-digit code to ${email} and your registered WhatsApp number.` 
     });
   } catch (error: any) {
     console.error('[AUTH] sendOTP error:', error);
@@ -480,10 +493,15 @@ export const forgotPassword = async (req: Request, res: Response) => {
       { upsert: true, new: true }
     );
 
-    // Send email
-    const isSent = await sendOTPMail(user.email, code);
+    // Send email and WhatsApp
+    const [isEmailSent, isWhatsappSent] = await Promise.all([
+      user.email ? sendOTPMail(user.email, code) : Promise.resolve(false),
+      sendWhatsAppOTP(user.mobile, code)
+    ]);
+    const isSent = isEmailSent || isWhatsappSent;
+
     if (!isSent) {
-      console.warn(`\n[OTP FALLBACK] SMTP failed for forgot password. Dev OTP: ${code}\n`);
+      console.warn(`\n[OTP FALLBACK] Transmission failed for forgot password. Dev OTP: ${code}\n`);
     }
 
     // Mask email
@@ -500,7 +518,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       email: masked,
-      message: 'A 6-digit password reset code has been sent to your registered email.'
+      message: `We sent a secure 6-digit code to ${masked} and your registered WhatsApp number.`
     });
 
   } catch (error: any) {
